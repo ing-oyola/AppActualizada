@@ -9595,7 +9595,7 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             self.letter_counter = 0
             
             # Realizar el análisis
-            status_label.config(text="Analizando portafolios...")
+            status_label.config(text="AQUI VA Analizando portafolios...")
             loading_window.update()
             
             self.identical_portfolios, self.unique_portfolios = self.find_identical_and_unique_portfolios(file_path)
