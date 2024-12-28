@@ -20,10 +20,66 @@ import glob
 import re
 from openpyxl.styles import Border, Side
 import requests
-import os
 import sys
 import tkinter.messagebox as messagebox
 from packaging import version
+from update_checker import AutoUpdater
+from typing import List, Optional
+from base_app import BaseApp
+from temp_handler import temp_handler
+import logging
+
+# Configurar logging
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)   
+
+def check_for_updates():
+    """Verifica y aplica actualizaciones si están disponibles"""
+    try:
+        # Verificar archivos requeridos primero
+        missing_files = BaseApp.verify_data_files()
+        if missing_files:
+            messagebox.showwarning(
+                "Archivos Faltantes",
+                f"Faltan los siguientes archivos:\n{', '.join(missing_files)}\n"
+                "La aplicación podría no funcionar correctamente."
+            )
+            logging.warning(f"Archivos faltantes: {missing_files}")
+
+        # Verificar actualizaciones
+        updater = AutoUpdater()
+        needs_update, latest_version = updater.check_for_updates()
+        
+        if needs_update:
+            current_version = BaseApp.get_version()
+            respuesta = messagebox.askyesno(
+                "Actualización Disponible",
+                f"Versión actual: {current_version}\n"
+                f"Nueva versión disponible: {latest_version}\n"
+                "¿Deseas actualizar ahora?"
+            )
+            
+            if respuesta:
+                logging.info(f"Iniciando actualización a versión {latest_version}")
+                update_file = updater.download_update(latest_version)
+                if update_file:
+                    updater.apply_update(update_file)
+                else:
+                    messagebox.showerror(
+                        "Error",
+                        "No se pudo descargar la actualización."
+                    )
+                    logging.error("Fallo en la descarga de la actualización")
+        
+    except Exception as e:
+        logging.error(f"Error en el proceso de actualización: {str(e)}")
+        messagebox.showerror(
+            "Error",
+            f"Error al verificar actualizaciones:\n{str(e)}"
+        )
 
 # Configure CustomTkinter appearance
 ctk.set_appearance_mode("dark")  # Modes: "System", "Dark", "Light"
@@ -1035,17 +1091,15 @@ class CustomGroupingDialog:
         self.dialog.wait_window()
         return self.result
 
-class CustomGroupingAnalysis:
+class CustomGroupingAnalysis(BaseApp):
     def __init__(self, parent):
         self.parent = parent
-        
+
     def load_master_data(self):
         """Carga datos maestros desde archivos externos."""
         try:
             # Buscar archivo db_maestrospdv en la misma carpeta
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.join(os.path.dirname(script_dir), "data")
-            db_file = os.path.join(data_dir, "db_maestrospdv.xlsx")
+            db_file = self.get_data_path("db_maestrospdv.xlsx")
             
             if not os.path.exists(db_file):
                 raise FileNotFoundError("No se encontró el archivo db_maestrospdv.xlsx")
@@ -1079,9 +1133,7 @@ class CustomGroupingAnalysis:
     def load_modulation_data(self, category):
         """Carga datos de modulación para una categoría específica."""
         try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.join(os.path.dirname(script_dir), "data")
-            maestro_file = os.path.join(data_dir, "Form.Maestro.Neg.xlsx")
+            maestro_file = self.get_data_path("Form.Maestro.Neg.xlsx")
             
             if not os.path.exists(maestro_file):
                 raise FileNotFoundError("No se encontró el archivo Form.Maestro.Neg.xlsx")
@@ -1832,7 +1884,7 @@ class CustomGroupResults:
             text_color="#64748b"
         ).pack(pady=(0, 10))
 
-class ModernPortfolioAnalyzerApp:
+class ModernPortfolioAnalyzerApp(BaseApp):
     def __init__(self, root):
         self.root = root
         self.root.title("Analizador de Portafolios")
@@ -2999,10 +3051,7 @@ class ModernPortfolioAnalyzerApp:
             dict: Diccionario con la estructura {num_modulos: {'count': n, 'centers': [...]}}
         """
         try:
-            # Buscar el archivo maestro en el mismo directorio
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.join(os.path.dirname(script_dir), "data")
-            maestro_file = os.path.join(data_dir, "Form.Maestro.Neg.xlsx")
+            maestro_file = self.get_data_path("Form.Maestro.Neg.xlsx")
             
             if not os.path.exists(maestro_file):
                 raise FileNotFoundError("No se encontró el archivo Form.Maestro.Neg.xlsx")
@@ -4488,18 +4537,8 @@ class ModernPortfolioAnalyzerApp:
     def load_geographic_data(self):
         """Cargar datos geográficos desde el archivo Excel."""
         try:
-            # Buscar el archivo en la misma carpeta que el script
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.join(os.path.dirname(script_dir), "data")
-            file_pattern = os.path.join(data_dir, "db_maestrospdv.*")
-            
-            # Buscar todos los archivos que coincidan con el patrón
-            matching_files = glob.glob(file_pattern)
-            if not matching_files:
-                raise FileNotFoundError("No se encontró el archivo db_maestrospdv")
-            
-            # Usar el archivo más reciente
-            db_file = max(matching_files, key=os.path.getmtime)
+            # Usar el método de la clase base para obtener la ruta del archivo
+            db_file = self.get_data_path("db_maestrospdv.xlsx")
             
             # Leer archivo
             df = pd.read_excel(db_file)
@@ -5526,9 +5565,7 @@ class ModernPortfolioAnalyzerApp:
         """
         try:
             # Cargar datos maestros
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.join(os.path.dirname(script_dir), "data")
-            maestro_file = os.path.join(data_dir, "db_maestrospdv.xlsx")
+            maestro_file = self.get_data_path("db_maestrospdv.xlsx")
             
             if not os.path.exists(maestro_file):
                 raise FileNotFoundError("No se encontró el archivo db_maestrospdv.xlsx")
@@ -6201,9 +6238,7 @@ class ModernPortfolioAnalyzerApp:
         """
         try:
             # Cargar datos maestros
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.join(os.path.dirname(script_dir), "data")
-            maestro_file = os.path.join(data_dir, "db_maestrospdv.xlsx")
+            maestro_file = self.get_data_path("db_maestrospdv.xlsx")
             
             if not os.path.exists(maestro_file):
                 raise FileNotFoundError("No se encontró el archivo db_maestrospdv.xlsx")
@@ -9790,4 +9825,5 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
+    check_for_updates()
     main()
