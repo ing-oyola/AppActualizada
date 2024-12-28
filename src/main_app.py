@@ -37,49 +37,37 @@ logging.basicConfig(
 )   
 
 def check_for_updates():
-    """Verifica y aplica actualizaciones si están disponibles"""
     try:
-        # Verificar archivos requeridos primero
-        missing_files = BaseApp.verify_data_files()
-        if missing_files:
-            messagebox.showwarning(
-                "Archivos Faltantes",
-                f"Faltan los siguientes archivos:\n{', '.join(missing_files)}\n"
-                "La aplicación podría no funcionar correctamente."
-            )
-            logging.warning(f"Archivos faltantes: {missing_files}")
-
-        # Verificar actualizaciones
+        print("Iniciando verificación de actualizaciones...")
         updater = AutoUpdater()
         needs_update, latest_version = updater.check_for_updates()
+        print(f"¿Necesita actualización?: {needs_update}, Última versión: {latest_version}")
         
         if needs_update:
-            current_version = BaseApp.get_version()
             respuesta = messagebox.askyesno(
                 "Actualización Disponible",
-                f"Versión actual: {current_version}\n"
-                f"Nueva versión disponible: {latest_version}\n"
-                "¿Deseas actualizar ahora?"
+                f"Hay una nueva versión disponible: {latest_version}\n¿Deseas actualizar ahora?"
             )
+            print(f"Respuesta del usuario: {respuesta}")
             
             if respuesta:
-                logging.info(f"Iniciando actualización a versión {latest_version}")
+                print("Descargando actualización...")
                 update_file = updater.download_update(latest_version)
+                print(f"Archivo de actualización: {update_file}")
+                
                 if update_file:
+                    print("Aplicando actualización...")
                     updater.apply_update(update_file)
                 else:
+                    print("No se pudo obtener el archivo de actualización")
                     messagebox.showerror(
                         "Error",
                         "No se pudo descargar la actualización."
                     )
-                    logging.error("Fallo en la descarga de la actualización")
-        
     except Exception as e:
-        logging.error(f"Error en el proceso de actualización: {str(e)}")
-        messagebox.showerror(
-            "Error",
-            f"Error al verificar actualizaciones:\n{str(e)}"
-        )
+        print(f"Error en check_for_updates: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 # Configure CustomTkinter appearance
 ctk.set_appearance_mode("dark")  # Modes: "System", "Dark", "Light"
