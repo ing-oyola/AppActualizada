@@ -8,6 +8,11 @@ from packaging import version
 import subprocess
 import zipfile
 
+import logging
+import os
+import tkinter as tk
+from tkinter import ttk
+
 class AutoUpdater:
     def __init__(self):
         self.github_user = "ing-oyola"
@@ -16,7 +21,85 @@ class AutoUpdater:
         self.github_api_url = f"https://api.github.com/repos/{self.github_user}/{self.repo_name}/releases/latest"
         self.base_dir = BaseApp.get_base_path()
         self.temp_dir = temp_handler.get_temp_dir()
-    
+        
+        # Configurar logging
+        log_path = os.path.join(self.base_dir, 'update.log')
+        self.logger = logging.getLogger('updater')
+        self.logger.setLevel(logging.INFO)
+        handler = logging.FileHandler(log_path)
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        self.logger.addHandler(handler)
+
+    def download_update(self, version, progress_window=None):
+        """Descarga la nueva versión"""
+        try:
+            self.logger.info(f"Iniciando descarga de versión {version}")
+            
+            # Actualizar interfaz si existe
+            status_label = None
+            progress_bar = None
+            if progress_window:
+                status_label = progress_window.nametowidget("status_label")
+                progress_bar = progress_window.nametowidget("progress_bar")
+
+            def update_status(message):
+                self.logger.info(message)
+                if status_label:
+                    status_label.config(text=message)
+                    progress_window.update()
+
+            update_status("Conectando con GitHub...")
+            response = requests.get(self.github_api_url)
+            assets = response.json()['assets']
+            
+            for asset in assets:
+                if asset['name'].endswith('.zip'):
+                    download_url = asset['browser_download_url']
+                    update_status(f"Descargando desde {download_url}")
+                    
+                    r = requests.get(download_url, stream=True)
+                    total_size = int(r.headers.get('content-length', 0))
+                    
+                    if progress_bar:
+                        progress_bar['mode'] = 'determinate'
+                        progress_bar['maximum'] = total_size
+
+                    update_dir = os.path.join(self.temp_dir, "update")
+                    os.makedirs(update_dir, exist_ok=True)
+                    update_zip = os.path.join(update_dir, "update.zip")
+
+                    downloaded = 0
+                    with open(update_zip, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if progress_bar:
+                                    progress_bar['value'] = downloaded
+                                    progress_window.update()
+                                update_status(f"Descargando... {(downloaded/total_size)*100:.1f}%")
+
+                    update_status("Extrayendo archivos...")
+                    exe_path = self.extract_update(update_zip)
+                    
+                    if exe_path:
+                        update_status("Descarga completada exitosamente")
+                        self.logger.info("Descarga y extracción completadas con éxito")
+                        return exe_path
+                    else:
+                        update_status("Error en la extracción")
+                        self.logger.error("Error durante la extracción")
+                        return None
+
+            self.logger.error("No se encontró archivo ZIP en el release")
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Error en la descarga: {str(e)}", exc_info=True)
+            if progress_window:
+                progress_window.destroy()
+            return None
+         
     def check_for_updates(self):
         """Verifica si hay actualizaciones disponibles"""
         try:
@@ -32,52 +115,6 @@ class AutoUpdater:
             print(f"Error al verificar actualizaciones: {e}")
             return False, None
     
-    def download_update(self, version):
-        """Descarga la nueva versión"""
-        try:
-            print(f"Obteniendo información del release {version}...")
-            response = requests.get(self.github_api_url)
-            assets = response.json()['assets']
-            
-            print("Assets disponibles:", [asset['name'] for asset in assets])
-            
-            for asset in assets:
-                if asset['name'].endswith('.zip'):
-                    download_url = asset['browser_download_url']
-                    print(f"URL de descarga: {download_url}")
-                    r = requests.get(download_url)
-                    print(f"Status de descarga: {r.status_code}")
-                    
-                    # Crear directorio para la actualización
-                    update_dir = os.path.join(self.temp_dir, "update")
-                    if not os.path.exists(update_dir):
-                        os.makedirs(update_dir)
-                    
-                    update_zip = os.path.join(update_dir, "update.zip")
-                    print(f"Guardando ZIP en: {update_zip}")
-                    
-                    # Guardar el ZIP
-                    with open(update_zip, 'wb') as f:
-                        f.write(r.content)
-                    
-                    print("Realizando backup...")
-                    self.backup_data_files()
-                    
-                    print("Extrayendo actualización...")
-                    exe_path = self.extract_update(update_zip)
-                    print(f"Ejecutable extraído en: {exe_path}")
-                    
-                    return exe_path
-                    
-            print("No se encontró archivo ZIP en el release")
-            return None
-            
-        except Exception as e:
-            print(f"Error al descargar actualización: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-
     def backup_data_files(self):
         """Hace una copia de seguridad de los archivos de datos"""
         backup_dir = os.path.join(self.base_dir, "backup_data")

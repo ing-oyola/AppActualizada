@@ -39,7 +39,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )   
 
-def check_for_updates():
+def check_for_updates(root):
     global checking_updates
     if checking_updates:
         return
@@ -57,21 +57,30 @@ def check_for_updates():
             )
             
             if respuesta:
-                progress = tk.Toplevel()
+                progress = tk.Toplevel(root)
                 progress.title("Actualizando")
-                progress.geometry("300x100")
+                progress.geometry("300x150")
+                progress.resizable(False, False)
                 
-                label = ttk.Label(progress, text="Descargando actualización...")
-                label.pack(pady=10)
+                # Centrar la ventana
+                progress.geometry("+%d+%d" % (
+                    root.winfo_rootx() + root.winfo_width()/2 - 150,
+                    root.winfo_rooty() + root.winfo_height()/2 - 75
+                ))
                 
-                pb = ttk.Progressbar(progress, mode='indeterminate')
-                pb.pack(padx=20, fill='x')
-                pb.start()
+                status_label = ttk.Label(progress, name="status_label", 
+                                       text="Iniciando descarga...")
+                status_label.pack(pady=10)
+                
+                progress_bar = ttk.Progressbar(progress, name="progress_bar",
+                                             mode='determinate')
+                progress_bar.pack(padx=20, fill='x')
                 
                 def update_task():
                     try:
-                        update_file = updater.download_update(latest_version)
+                        update_file = updater.download_update(latest_version, progress)
                         if update_file:
+                            progress.destroy()
                             updater.apply_update(update_file)
                         else:
                             progress.destroy()
@@ -89,8 +98,9 @@ def check_for_updates():
                 thread = threading.Thread(target=update_task)
                 thread.daemon = True
                 thread.start()
+                
     except Exception as e:
-        print(f"Error al verificar actualizaciones: {e}")
+        logging.error(f"Error al verificar actualizaciones: {e}", exc_info=True)
     finally:
         checking_updates = False
 
@@ -9608,7 +9618,7 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             self.letter_counter = 0
             
             # Realizar el análisis
-            status_label.config(text="AAAAnalizando portafolios...")
+            status_label.config(text="Analizando portafolios...")
             loading_window.update()
             
             self.identical_portfolios, self.unique_portfolios = self.find_identical_and_unique_portfolios(file_path)
@@ -9834,13 +9844,13 @@ class ModernPortfolioAnalyzerApp(BaseApp):
 
 def main():
     root = tk.Tk()
-    app = ModernPortfolioAnalyzerApp(root)      
+    app = ModernPortfolioAnalyzerApp(root)
+    
     # Verificar actualizaciones después de 3 segundos
     def delayed_update_check():
-        root.after(3000, check_for_updates)
+        root.after(3000, lambda: check_for_updates(root))
     
-    # Iniciar verificación después de que la app esté corriendo
-    root.after(1, delayed_update_check)    
+    root.after(1, delayed_update_check)
     root.mainloop()
 
 if __name__ == "__main__":
