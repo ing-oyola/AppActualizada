@@ -60,18 +60,37 @@ def create_release_zip():
     
     try:
         with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Verificar que el ejecutable existe
+            exe_path = os.path.join('dist', 'AppActualizada.exe')
+            if not os.path.exists(exe_path):
+                # Si no existe, buscar por el otro nombre
+                exe_path = os.path.join('dist', 'analyze_portfolios.exe')
+                if not os.path.exists(exe_path):
+                    raise FileNotFoundError("No se encontró el archivo ejecutable en /dist")
+            
+            print(f"Agregando ejecutable: {exe_path}")
             # Añadir el ejecutable
-            zipf.write('dist/analyze_portfolios.exe', 'AppActualizada.exe')
+            zipf.write(exe_path, 'AppActualizada.exe')
+            
             # Añadir version.txt
+            print("Agregando version.txt")
             zipf.write('dist/version.txt', 'version.txt')
+            
             # Añadir la carpeta data y sus archivos
+            print("Agregando archivos de data")
             for root, dirs, files in os.walk('dist/data'):
                 for file in files:
                     file_path = os.path.join(root, file)
                     arcname = os.path.join('data', file)
+                    print(f"Agregando: {arcname}")
                     zipf.write(file_path, arcname)
+        
+        print(f"ZIP creado exitosamente: {zip_name}")
+        
     except Exception as e:
         print(f"Error al crear el ZIP: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 def build_app():
@@ -85,7 +104,7 @@ def build_app():
         'src/main_app.py',              # Archivo principal
         '--onefile',                    # Crear un solo ejecutable
         '--noconsole',                  # Sin consola
-        '--name=analyze_portfolios',    # Nombre del ejecutable
+        '--name=AppActualizada',        # Cambiado para coincidir
         '--clean',                      # Limpieza antes de construir
         # Incluir archivos necesarios
         '--add-data=version.txt;.',     # version.txt en raíz
@@ -112,7 +131,7 @@ def build_app():
         
         print("\nBuild completado exitosamente!")
         print("Archivos generados:")
-        print(" - dist/analyze_portfolios.exe")
+        print(" - dist/AppActualizada.exe")
         print(" - AppActualizada.zip (listo para subir a GitHub)")
         
     except Exception as e:

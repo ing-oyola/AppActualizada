@@ -28,6 +28,9 @@ from typing import List, Optional
 from base_app import BaseApp
 from temp_handler import temp_handler
 import logging
+import threading
+
+checking_updates = False
 
 # Configurar logging
 logging.basicConfig(
@@ -37,37 +40,59 @@ logging.basicConfig(
 )   
 
 def check_for_updates():
+    global checking_updates
+    if checking_updates:
+        return
+    
+    checking_updates = True
     try:
-        print("Iniciando verificación de actualizaciones...")
         updater = AutoUpdater()
         needs_update, latest_version = updater.check_for_updates()
-        print(f"¿Necesita actualización?: {needs_update}, Última versión: {latest_version}")
         
         if needs_update:
             respuesta = messagebox.askyesno(
                 "Actualización Disponible",
-                f"Hay una nueva versión disponible: {latest_version}\n¿Deseas actualizar ahora?"
+                f"Hay una nueva versión disponible: v{latest_version}\n¿Deseas actualizar ahora?",
+                icon='info'
             )
-            print(f"Respuesta del usuario: {respuesta}")
             
             if respuesta:
-                print("Descargando actualización...")
-                update_file = updater.download_update(latest_version)
-                print(f"Archivo de actualización: {update_file}")
+                progress = tk.Toplevel()
+                progress.title("Actualizando")
+                progress.geometry("300x100")
                 
-                if update_file:
-                    print("Aplicando actualización...")
-                    updater.apply_update(update_file)
-                else:
-                    print("No se pudo obtener el archivo de actualización")
-                    messagebox.showerror(
-                        "Error",
-                        "No se pudo descargar la actualización."
-                    )
+                label = ttk.Label(progress, text="Descargando actualización...")
+                label.pack(pady=10)
+                
+                pb = ttk.Progressbar(progress, mode='indeterminate')
+                pb.pack(padx=20, fill='x')
+                pb.start()
+                
+                def update_task():
+                    try:
+                        update_file = updater.download_update(latest_version)
+                        if update_file:
+                            updater.apply_update(update_file)
+                        else:
+                            progress.destroy()
+                            messagebox.showerror(
+                                "Error",
+                                "No se pudo descargar la actualización."
+                            )
+                    except Exception as e:
+                        progress.destroy()
+                        messagebox.showerror(
+                            "Error",
+                            f"Error durante la actualización: {str(e)}"
+                        )
+                
+                thread = threading.Thread(target=update_task)
+                thread.daemon = True
+                thread.start()
     except Exception as e:
-        print(f"Error en check_for_updates: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error al verificar actualizaciones: {e}")
+    finally:
+        checking_updates = False
 
 # Configure CustomTkinter appearance
 ctk.set_appearance_mode("dark")  # Modes: "System", "Dark", "Light"
@@ -9583,7 +9608,7 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             self.letter_counter = 0
             
             # Realizar el análisis
-            status_label.config(text="Analizando portafolios...")
+            status_label.config(text="AAAAnalizando portafolios...")
             loading_window.update()
             
             self.identical_portfolios, self.unique_portfolios = self.find_identical_and_unique_portfolios(file_path)
@@ -9809,9 +9834,16 @@ class ModernPortfolioAnalyzerApp(BaseApp):
 
 def main():
     root = tk.Tk()
-    app = ModernPortfolioAnalyzerApp(root)
+    app = ModernPortfolioAnalyzerApp(root)      
+    # Verificar actualizaciones después de 3 segundos
+    def delayed_update_check():
+        root.after(3000, check_for_updates)
+    
+    # Iniciar verificación después de que la app esté corriendo
+    root.after(1, delayed_update_check)    
     root.mainloop()
 
 if __name__ == "__main__":
-    check_for_updates()
     main()
+
+    
