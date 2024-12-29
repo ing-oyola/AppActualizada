@@ -1,3 +1,5 @@
+
+import time
 from base_app import BaseApp
 from temp_handler import temp_handler
 import requests
@@ -51,6 +53,7 @@ class AutoUpdater:
             update_status("Conectando con GitHub...")
             response = requests.get(self.github_api_url)
             assets = response.json()['assets']
+            self.logger.info(f"Assets encontrados: {[asset['name'] for asset in assets]}")
             
             for asset in assets:
                 if asset['name'].endswith('.zip'):
@@ -68,6 +71,7 @@ class AutoUpdater:
                     os.makedirs(update_dir, exist_ok=True)
                     update_zip = os.path.join(update_dir, "update.zip")
 
+                    # Descargar el ZIP
                     downloaded = 0
                     with open(update_zip, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=8192):
@@ -79,18 +83,58 @@ class AutoUpdater:
                                     progress_window.update()
                                 update_status(f"Descargando... {(downloaded/total_size)*100:.1f}%")
 
+                    # Verificar contenido del ZIP
+                    update_status("Verificando contenido del ZIP...")
+                    with zipfile.ZipFile(update_zip, 'r') as zip_ref:
+                        files = zip_ref.namelist()
+                        self.logger.info("Contenido del ZIP:")
+                        for file in files:
+                            self.logger.info(f"- {file}")
+                        
+                        # Verificar version.txt dentro del ZIP
+                        if 'version.txt' in files:
+                            with zip_ref.open('version.txt') as version_file:
+                                zip_version = version_file.read().decode('utf-8').strip()
+                                self.logger.info(f"Versión en ZIP: {zip_version}")
+                        else:
+                            self.logger.warning("No se encontró version.txt en el ZIP")
+
+                    # Extraer archivos
                     update_status("Extrayendo archivos...")
-                    exe_path = self.extract_update(update_zip)
+                    extract_dir = os.path.join(update_dir, "extracted")
+                    if os.path.exists(extract_dir):
+                        shutil.rmtree(extract_dir)
+                    os.makedirs(extract_dir)
                     
-                    if exe_path:
+                    with zipfile.ZipFile(update_zip, 'r') as zip_ref:
+                        zip_ref.extractall(extract_dir)
+                    
+                    # Verificar archivos extraídos
+                    exe_path = os.path.join(extract_dir, "AppActualizada.exe")
+                    version_path = os.path.join(extract_dir, "version.txt")
+                    
+                    if os.path.exists(exe_path):
+                        self.logger.info(f"Ejecutable encontrado: {exe_path}")
+                        
+                        # Modificar esta parte del código
+                        if os.path.exists(version_path):
+                            with open(version_path, 'r') as f:
+                                extracted_version = f.read().strip()
+                                self.logger.info(f"Versión extraída: {extracted_version}")
+                                # Normalizar las versiones para comparación
+                                extracted_ver = extracted_version.replace('v', '')
+                                expected_ver = version.replace('v', '')
+                                if extracted_ver != expected_ver:
+                                    self.logger.warning(f"¡Advertencia! Versión extraída ({extracted_version}) no coincide con la esperada (v{version})")
+                        
                         update_status("Descarga completada exitosamente")
-                        self.logger.info("Descarga y extracción completadas con éxito")
                         return exe_path
                     else:
-                        update_status("Error en la extracción")
-                        self.logger.error("Error durante la extracción")
+                        update_status("Error: No se encontró el ejecutable")
+                        self.logger.error(f"Ejecutable no encontrado en: {exe_path}")
                         return None
 
+            update_status("Error: No se encontró el archivo ZIP en el release")
             self.logger.error("No se encontró archivo ZIP en el release")
             return None
 
@@ -99,7 +143,7 @@ class AutoUpdater:
             if progress_window:
                 progress_window.destroy()
             return None
-         
+
     def check_for_updates(self):
         """Verifica si hay actualizaciones disponibles"""
         try:
@@ -168,42 +212,93 @@ class AutoUpdater:
         """Aplica la actualización"""
         try:
             if not new_exe_path or not os.path.exists(new_exe_path):
-                print(f"Ejecutable no encontrado: {new_exe_path}")
+                self.logger.error(f"Ejecutable no encontrado: {new_exe_path}")
                 return False
             
-            print("Preparando actualización...")
-            batch_path = os.path.join(self.temp_dir, "updater.bat")
+            self.logger.info(f"Preparando actualización desde: {new_exe_path}")
             current_exe = BaseApp.get_app_file_path()
+            current_dir = os.path.dirname(current_exe)
+            new_dir = os.path.dirname(new_exe_path)
+            self.logger.info(f"Ejecutable actual: {current_exe}")
+            
+            batch_path = os.path.join(current_dir, "updater.bat")
+            self.logger.info(f"Creando batch en: {batch_path}")
             
             batch_content = f'''
-@echo on
-echo Iniciando actualización...
-timeout /t 2 /nobreak
-echo Cerrando aplicación actual...
-taskkill /F /IM AppActualizada.exe /T
-echo Eliminando versión anterior...
-del "{current_exe}"
-echo Copiando nueva versión...
-copy "{new_exe_path}" "{current_exe}"
-echo Limpiando temporales...
-rmdir /s /q "{os.path.dirname(os.path.dirname(new_exe_path))}"
-echo Iniciando nueva versión...
-start "" "{current_exe}"
-echo Eliminando batch...
-del "%~f0"
-'''
-            print("Creando batch de actualización...")
-            with open(batch_path, "w") as batch:
+    @echo on
+    cd /d "{current_dir}"
+
+    echo Iniciando actualizacion... > update_log.txt
+    echo Ubicacion actual: %CD% >> update_log.txt
+
+    :: Esperar y cerrar la aplicación
+    echo Cerrando aplicacion actual...
+    taskkill /F /IM AppActualizada.exe
+    timeout /t 3 /nobreak > nul
+
+    :: Verificar archivos antes de empezar
+    echo Verificando archivos... >> update_log.txt
+    echo Archivo actual: {current_exe} >> update_log.txt
+    echo Nuevo archivo: {new_exe_path} >> update_log.txt
+
+    :: Intentar eliminar los archivos anteriores
+    echo Eliminando archivos anteriores...
+    del /F /Q "{current_exe}"
+    del /F /Q "{os.path.join(current_dir, 'version.txt')}"
+    if exist "{current_exe}" (
+        echo Error: No se pudo eliminar el ejecutable anterior >> update_log.txt
+        exit /b 1
+    )
+    echo Archivos anteriores eliminados exitosamente >> update_log.txt
+
+    :: Copiar los nuevos archivos
+    echo Copiando nuevos archivos...
+    copy /Y "{new_exe_path}" "{current_exe}"
+    copy /Y "{os.path.join(new_dir, 'version.txt')}" "{os.path.join(current_dir, 'version.txt')}"
+
+    :: Verificar la copia
+    if exist "{current_exe}" (
+        if exist "{os.path.join(current_dir, 'version.txt')}" (
+            echo Archivos copiados exitosamente >> update_log.txt
+        ) else (
+            echo Error: Fallo al copiar version.txt >> update_log.txt
+            exit /b 1
+        )
+    ) else (
+        echo Error: Fallo al copiar el ejecutable >> update_log.txt
+        exit /b 1
+    )
+
+    :: Limpiar archivos temporales
+    echo Limpiando temporales...
+    rmdir /S /Q "{os.path.dirname(os.path.dirname(new_exe_path))}"
+
+    :: Iniciar la nueva versión
+    echo Iniciando nueva version...
+    start "" "{current_exe}"
+
+    :: Eliminar este batch al final
+    (goto) 2>nul & del "%~f0"
+    '''
+            # Escribir el batch
+            self.logger.info("Escribiendo archivo batch...")
+            with open(batch_path, 'w', encoding='utf-8') as batch:
                 batch.write(batch_content)
             
-            print("Ejecutando actualización...")
-            subprocess.Popen(batch_path, shell=True)
-            print("Cerrando aplicación...")
-            sys.exit()
+            # Ejecutar el batch
+            self.logger.info("Ejecutando batch de actualización...")
+            CREATE_NO_WINDOW = 0x08000000
+            subprocess.Popen(
+                f'cmd /c start /wait "" "{batch_path}"',
+                creationflags=CREATE_NO_WINDOW
+            )
+            
+            # Esperar un momento antes de cerrar
+            self.logger.info("Esperando antes de cerrar...")
+            time.sleep(3)
+            self.logger.info("Cerrando aplicación para completar actualización...")
+            sys.exit(0)
             
         except Exception as e:
-            print(f"Error al aplicar actualización: {e}")
-            self.restore_backup()
-            import traceback
-            traceback.print_exc()
+            self.logger.error(f"Error al aplicar actualización: {str(e)}", exc_info=True)
             return False
