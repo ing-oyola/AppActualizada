@@ -24,13 +24,18 @@ class AutoUpdater:
         self.base_dir = BaseApp.get_base_path()
         self.temp_dir = temp_handler.get_temp_dir()
         
-        # Configurar logging
-        log_path = os.path.join(self.base_dir, 'update.log')
-        self.logger = logging.getLogger('updater')
-        self.logger.setLevel(logging.INFO)
-        handler = logging.FileHandler(log_path)
-        handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        self.logger.addHandler(handler)
+        # Solo configurar logging en desarrollo
+        if not BaseApp.is_production():
+            log_path = os.path.join(self.base_dir, 'update.log')
+            self.logger = logging.getLogger('updater')
+            self.logger.setLevel(logging.INFO)
+            handler = logging.FileHandler(log_path)
+            handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            self.logger.addHandler(handler)
+        else:
+            # Logger nulo para producción
+            self.logger = logging.getLogger('null')
+            self.logger.addHandler(logging.NullHandler())
 
     def download_update(self, version, progress_window=None):
         """Descarga la nueva versión"""
@@ -225,59 +230,35 @@ class AutoUpdater:
             self.logger.info(f"Creando batch en: {batch_path}")
             
             batch_content = f'''
-    @echo on
+    @echo off
     cd /d "{current_dir}"
 
-    echo Iniciando actualizacion... > update_log.txt
-    echo Ubicacion actual: %CD% >> update_log.txt
+    :: Cerrar la aplicación actual
+    taskkill /F /IM AppActualizada.exe >nul 2>&1
+    timeout /t 3 /nobreak >nul
 
-    :: Esperar y cerrar la aplicación
-    echo Cerrando aplicacion actual...
-    taskkill /F /IM AppActualizada.exe
-    timeout /t 3 /nobreak > nul
+    :: Eliminar archivos anteriores
+    del /F /Q "{current_exe}" >nul 2>&1
+    del /F /Q "{os.path.join(current_dir, 'version.txt')}" >nul 2>&1
 
-    :: Verificar archivos antes de empezar
-    echo Verificando archivos... >> update_log.txt
-    echo Archivo actual: {current_exe} >> update_log.txt
-    echo Nuevo archivo: {new_exe_path} >> update_log.txt
-
-    :: Intentar eliminar los archivos anteriores
-    echo Eliminando archivos anteriores...
-    del /F /Q "{current_exe}"
-    del /F /Q "{os.path.join(current_dir, 'version.txt')}"
-    if exist "{current_exe}" (
-        echo Error: No se pudo eliminar el ejecutable anterior >> update_log.txt
-        exit /b 1
-    )
-    echo Archivos anteriores eliminados exitosamente >> update_log.txt
-
-    :: Copiar los nuevos archivos
-    echo Copiando nuevos archivos...
-    copy /Y "{new_exe_path}" "{current_exe}"
-    copy /Y "{os.path.join(new_dir, 'version.txt')}" "{os.path.join(current_dir, 'version.txt')}"
+    :: Copiar nuevos archivos
+    copy /Y "{new_exe_path}" "{current_exe}" >nul 2>&1
+    copy /Y "{os.path.join(new_dir, 'version.txt')}" "{os.path.join(current_dir, 'version.txt')}" >nul 2>&1
 
     :: Verificar la copia
     if exist "{current_exe}" (
-        if exist "{os.path.join(current_dir, 'version.txt')}" (
-            echo Archivos copiados exitosamente >> update_log.txt
-        ) else (
-            echo Error: Fallo al copiar version.txt >> update_log.txt
+        if not exist "{os.path.join(current_dir, 'version.txt')}" (
             exit /b 1
         )
     ) else (
-        echo Error: Fallo al copiar el ejecutable >> update_log.txt
         exit /b 1
     )
 
-    :: Limpiar archivos temporales
-    echo Limpiando temporales...
-    rmdir /S /Q "{os.path.dirname(os.path.dirname(new_exe_path))}"
+    :: Limpiar temporales
+    rmdir /S /Q "{os.path.dirname(os.path.dirname(new_exe_path))}" >nul 2>&1
 
-    :: Iniciar la nueva versión
-    echo Iniciando nueva version...
-    start "" "{current_exe}"
-
-    :: Eliminar este batch al final
+    :: Iniciar nueva versión
+    start /b "" "{current_exe}"
     (goto) 2>nul & del "%~f0"
     '''
             # Escribir el batch
@@ -288,9 +269,16 @@ class AutoUpdater:
             # Ejecutar el batch
             self.logger.info("Ejecutando batch de actualización...")
             CREATE_NO_WINDOW = 0x08000000
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+
             subprocess.Popen(
-                f'cmd /c start /wait "" "{batch_path}"',
-                creationflags=CREATE_NO_WINDOW
+                f'cmd /c "{batch_path}"',
+                creationflags=CREATE_NO_WINDOW,
+                startupinfo=startupinfo,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
             
             # Esperar un momento antes de cerrar

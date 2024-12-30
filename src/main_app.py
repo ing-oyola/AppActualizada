@@ -1,43 +1,62 @@
+# Importaciones estándar de Python
 from collections import defaultdict
 import math
+import os
+import threading
+import logging
+from datetime import datetime, time
+from typing import List, Optional
+import unicodedata
+
+# Importaciones de Tkinter
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import unicodedata
-import pandas as pd
-from datetime import datetime, time
-import customtkinter as ctk
-from openpyxl.styles import Font, Alignment, PatternFill
-from openpyxl.utils import get_column_letter
-from openpyxl.worksheet.table import Table, TableStyleInfo
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.animation import FuncAnimation
-from matplotlib.colors import LinearSegmentedColormap
-import os
-import glob
-import re
-from openpyxl.styles import Border, Side
-import requests
-import sys
 import tkinter.messagebox as messagebox
-from packaging import version
-from update_checker import AutoUpdater
-from typing import List, Optional
+import customtkinter as ctk
+
+# Importaciones locales
 from base_app import BaseApp
 from temp_handler import temp_handler
-import logging
-import threading
+from update_checker import AutoUpdater
+
+# Importaciones para manejo de requests
+import requests
+from packaging import version
+
+# Importar LazyLoader
+from lazy_loader import LazyLoader
+
+# Librerías pesadas usando lazy loading
+pd = LazyLoader('pandas')
+np = LazyLoader('numpy')
+plt = LazyLoader('matplotlib.pyplot')
+Figure = LazyLoader('matplotlib.figure').Figure
+FigureCanvasTkAgg = LazyLoader('matplotlib.backends.backend_tkagg').FigureCanvasTkAgg
+FuncAnimation = LazyLoader('matplotlib.animation').FuncAnimation
+LinearSegmentedColormap = LazyLoader('matplotlib.colors').LinearSegmentedColormap
+excel_writer = LazyLoader('pandas.ExcelWriter')
+ExcelFile = LazyLoader('pandas.ExcelFile')
+
+# Importaciones de openpyxl usando lazy loading
+excel_styles = LazyLoader('openpyxl.styles')
+Font = excel_styles.Font
+Alignment = excel_styles.Alignment
+PatternFill = excel_styles.PatternFill
+Border = excel_styles.Border
+Side = excel_styles.Side
+get_column_letter = LazyLoader('openpyxl.utils').get_column_letter
+Table = LazyLoader('openpyxl.worksheet.table').Table
+TableStyleInfo = LazyLoader('openpyxl.worksheet.table').TableStyleInfo
 
 checking_updates = False
 
-# Configurar logging
-logging.basicConfig(
-    filename='app.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)   
+# Configurar logging solo en desarrollo
+if not BaseApp.is_production():
+    logging.basicConfig(
+        filename='app.log',
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 def check_for_updates(root):
     global checking_updates
@@ -527,101 +546,6 @@ class SimplePivotTable:
                     df[col] = df[col].astype('category')
         
         return df
-
-    def setup_ui(self):
-        """Configurar UI optimizada."""
-        # Frame principal usando grid para mejor rendimiento
-        main_frame = ttk.Frame(self.window)
-        main_frame.grid(row=0, column=0, sticky="nsew")
-        
-        self.window.grid_rowconfigure(0, weight=1)
-        self.window.grid_columnconfigure(0, weight=1)
-        
-        # Panel izquierdo (campos)
-        left_frame = ttk.Frame(main_frame)
-        left_frame.grid(row=0, column=0, sticky="ns", padx=5, pady=5)
-        
-        # Lista de campos (usar Listbox con altura fija)
-        fields_frame = ttk.LabelFrame(left_frame, text="Campos")
-        fields_frame.pack(fill=tk.X, pady=5)
-        
-        self.available_fields = tk.Listbox(
-            fields_frame,
-            height=6,
-            exportselection=False,
-            selectmode=tk.EXTENDED
-        )
-        self.available_fields.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Cargar campos disponibles
-        self.load_available_fields()
-        
-        # Areas de pivot
-        self.create_pivot_areas(left_frame)
-        
-        # Panel derecho (tabla)
-        table_frame = ttk.Frame(main_frame)
-        table_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-        main_frame.grid_columnconfigure(1, weight=1)
-        
-        # Crear tabla optimizada
-        self.create_table(table_frame)
-
-    def load_available_fields(self):
-        """Cargar campos disponibles en el listbox con optimizaciones."""
-        try:
-            # Limpiar lista actual
-            self.available_fields.delete(0, tk.END)
-            
-            # Definir orden preferido de campos
-            preferred_fields = [
-                'Categoria', 'Subcategoria', 'Segmento',
-                'PLU_SAP', 'Articulo', 'Centro'
-            ]
-            
-            # Obtener todas las columnas del DataFrame
-            all_columns = set(self.data.columns)
-            
-            # Primero insertar campos preferidos si están disponibles
-            for field in preferred_fields:
-                if field in all_columns:
-                    self.available_fields.insert(tk.END, field)
-                    all_columns.remove(field)
-            
-            # Luego insertar el resto de campos ordenados alfabéticamente
-            remaining_fields = sorted(list(all_columns))
-            for field in remaining_fields:
-                self.available_fields.insert(tk.END, field)
-                
-        except Exception as e:
-            print(f"Error al cargar campos: {str(e)}")
-            # Intentar cargar campos de manera básica como fallback
-            for col in sorted(self.data.columns):
-                self.available_fields.insert(tk.END, col)
-
-    def load_default_config(self):
-        """Cargar configuración predeterminada optimizada."""
-        # Limpiar áreas
-        for area in ['filas', 'columnas', 'valores']:
-            if hasattr(self, f'{area}_list'):
-                getattr(self, f'{area}_list').delete(0, tk.END)
-        
-        # Configuración básica
-        default_config = {
-            'columnas': ['Centro'],
-            'filas': ['Categoria', 'PLU_SAP', 'Articulo'],
-            'valores': ['Centro']
-        }
-        
-        # Aplicar configuración verificando disponibilidad
-        for area, fields in default_config.items():
-            listbox = getattr(self, f'{area}_list')
-            for field in fields:
-                if field in self.data.columns:
-                    listbox.insert(tk.END, field)
-        
-        # Actualizar tabla
-        self.update_pivot_table()
 
     def update_pivot_table(self):
         """Actualizar tabla pivote con rendimiento optimizado."""
@@ -1367,146 +1291,7 @@ class CustomGroupResults:
             font=("Segoe UI", 12),
             text_color="#64748b"
         ).pack(pady=(0, 10))
-       
-    def create_data_table_with_chart(self, parent, title, group_data):
-        """Crear tabla de datos con gráfico usando el nuevo diseño."""
-        # Crear contenedor principal
-        container = ctk.CTkFrame(
-            parent,
-            fg_color="white",
-            corner_radius=10,
-            border_width=1,
-            border_color="#E5E7EB"
-        )
-        container.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Header frame
-        header_frame = ctk.CTkFrame(
-            container,
-            fg_color="#F9FAFB",
-            corner_radius=0,
-            height=50
-        )
-        header_frame.pack(fill=tk.X)
-        header_frame.pack_propagate(False)
-
-        # Frame izquierdo para título
-        title_frame = ctk.CTkFrame(
-            header_frame,
-            fg_color="transparent"
-        )
-        title_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Título
-        ctk.CTkLabel(
-            title_frame,
-            text=title,
-            font=("Segoe UI", 13, "bold"),
-            text_color="#111827"
-        ).pack(side=tk.LEFT, padx=15, pady=15)
-
-        # Botón de análisis
-        analyze_button = ctk.CTkButton(
-            header_frame,
-            text="Ver Análisis de Variación",
-            command=lambda centers=group_data['centers']: self.app.show_portfolio_variation('Personalizado', centers),
-            width=180,
-            height=32,
-            fg_color="#2563eb",
-            hover_color="#1d4ed8"
-        )
-        analyze_button.pack(side=tk.RIGHT, padx=15)
-        
-        # Frame para el contenido principal
-        content_frame = ctk.CTkFrame(
-            container,
-            fg_color="white",
-            corner_radius=0
-        )
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-
-        return container   
-
-    def create_stats_frame(self):
-        """Crea el frame de estadísticas."""
-        frame = ttk.Frame(self.upper_frame, style="Card.TFrame")
-        
-        # Calcular estadísticas
-        total_centers = sum(len(g['centers']) for g in self.groups)
-        total_groups = len(self.groups)
-        avg_centers = total_centers / total_groups if total_groups > 0 else 0
-        
-        # Crear tarjetas de estadísticas
-        stats = [
-            ("Total de Centros", total_centers, "#2563eb"),
-            ("Grupos Generados", total_groups, "#16a34a"),
-            ("Promedio de Centros por Grupo", f"{avg_centers:.1f}", "#8b5cf6")
-        ]
-        
-        for i, (title, value, color) in enumerate(stats):
-            stat_card = ctk.CTkFrame(
-                frame,
-                fg_color="white",
-                corner_radius=8,
-                border_width=1,
-                border_color="#e2e8f0"
-            )
-            stat_card.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, padx=5)
-            
-            # Valor
-            ttk.Label(
-                stat_card,
-                text=str(value),
-                font=('Segoe UI', 24, 'bold'),
-                foreground=color,
-                background='white'
-            ).pack(pady=(10, 5))
-            
-            # Título
-            ttk.Label(
-                stat_card,
-                text=title,
-                font=('Segoe UI', 12),
-                foreground='#64748b',
-                background='white'
-            ).pack(pady=(0, 10))
-            
-        return frame
-    
-    def bind_scroll_events(self):
-        """Configura los eventos de scroll para un funcionamiento más suave."""
-        def on_mousewheel(event):
-            if event.delta:
-                # Para Windows
-                self.canvas.yview_scroll(int(-1 * (event.delta/120)), "units")
-            else:
-                # Para Linux
-                if event.num == 4:
-                    self.canvas.yview_scroll(-1, "units")
-                elif event.num == 5:
-                    self.canvas.yview_scroll(1, "units")
-
-        # Binding para Windows
-        self.canvas.bind_all("<MouseWheel>", on_mousewheel)
-        
-        # Binding para Linux
-        self.canvas.bind_all("<Button-4>", on_mousewheel)
-        self.canvas.bind_all("<Button-5>", on_mousewheel)
-        
-        def unbind_mouse_wheel():
-            self.canvas.unbind_all("<MouseWheel>")
-            self.canvas.unbind_all("<Button-4>")
-            self.canvas.unbind_all("<Button-5>")
-        
-        def rebind_mouse_wheel(event):
-            self.canvas.bind_all("<MouseWheel>", on_mousewheel)
-            self.canvas.bind_all("<Button-4>", on_mousewheel)
-            self.canvas.bind_all("<Button-5>", on_mousewheel)
-        
-        # Desactivar/reactivar scroll cuando el mouse sale/entra del área
-        self.canvas.bind('<Enter>', rebind_mouse_wheel)
-        self.canvas.bind('<Leave>', lambda e: unbind_mouse_wheel())
-
+          
     def create_group_name(self, group):
         """
         Crea el nombre del grupo basado en los criterios de agrupación y sus valores.
@@ -1908,11 +1693,25 @@ class CustomGroupResults:
         ).pack(pady=(0, 10))
 
 class ModernPortfolioAnalyzerApp(BaseApp):
+    ICONS = {
+        'variation_analysis': """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+            <!-- Icono de tabla con gráfico -->
+            <path d="M4 6c0-1.1.9-2 2-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <!-- Líneas horizontales de la tabla -->
+            <path d="M4 9h16M4 14h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <!-- Gráfico de tendencia -->
+            <path d="M7 17l3-4 3 2 4-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>"""
+    }
+
     def __init__(self, root):
         self.root = root
         self.root.title("Analizador de Portafolios")
         self.current_plu_limit = 10
 
+        # Inicialización básica
+        self._initialize_variables()
+        
         # Agregar el validador de columnas
         self.column_validator = ColumnValidator()
         
@@ -1932,6 +1731,13 @@ class ModernPortfolioAnalyzerApp(BaseApp):
         self.root.state('zoomed')
         
         # Variables de estado
+        self._initialize_state_variables()
+        
+        # Iniciar la interfaz
+        self._initialize_ui()
+
+    def _initialize_variables(self):
+        """Inicializar variables básicas"""
         self.file_path_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Esperando archivo...")
         self.total_centers = tk.StringVar()
@@ -1939,7 +1745,10 @@ class ModernPortfolioAnalyzerApp(BaseApp):
         self.identical_groups = tk.StringVar()
         self.initial_masters = tk.StringVar()
         self.final_masters = tk.StringVar()
+        self.summary_ii_grid = None 
 
+    def _initialize_state_variables(self):
+        """Inicializar variables de estado y estilos"""
         self.title_font = Font(name='Segoe UI', size=14, bold=True)
         self.subtitle_font = Font(name='Segoe UI', size=12, bold=True)
         self.base_font = Font(name='Segoe UI', size=11)
@@ -1954,25 +1763,27 @@ class ModernPortfolioAnalyzerApp(BaseApp):
         self.warning_fill = PatternFill(start_color='FEF2F2', end_color='FEF2F2', fill_type='solid')
         self.success_fill = PatternFill(start_color='ECFDF5', end_color='ECFDF5', fill_type='solid')
         self.alternate_fill = PatternFill(start_color='F9FAFB', end_color='F9FAFB', fill_type='solid')
-        
+
+    def _initialize_ui(self):
+        """Inicializar la interfaz de usuario"""
         # Configurar el tema y estilo
         self.root.configure(bg='#f8fafc')
         self.style = ttk.Style()
         self.configure_styles()
         
+        # Crear widgets
         self.create_widgets()
         self.setup_shortcuts()
 
-    ICONS = {
-        'variation_analysis': """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-            <!-- Icono de tabla con gráfico -->
-            <path d="M4 6c0-1.1.9-2 2-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <!-- Líneas horizontales de la tabla -->
-            <path d="M4 9h16M4 14h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <!-- Gráfico de tendencia -->
-            <path d="M7 17l3-4 3 2 4-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>"""
-    }
+    def update_ui(self):
+        """Actualizar la UI de forma segura"""
+        if not hasattr(self, '_last_update'):
+            self._last_update = 0
+        
+        current_time = time.time() * 1000
+        if current_time - self._last_update > 100:
+            self.root.update_idletasks()
+            self._last_update = current_time
 
     def setup_shortcuts(self):
         """Configura los atajos de teclado para la aplicación."""
@@ -5045,28 +4856,6 @@ class ModernPortfolioAnalyzerApp(BaseApp):
         except Exception as e:
             messagebox.showerror("Error", f"Error al generar reportes: {str(e)}")
 
-    def create_title_row(self, ws, title, row=1, subtitle=None):
-        """Crear fila de título con formato y opcional subtítulo"""
-        cell = ws.cell(row=row, column=1, value=title)
-        cell.font = self.title_font
-        cell.alignment = self.left_alignment
-        
-        if subtitle:
-            sub_cell = ws.cell(row=row+1, column=1, value=subtitle)
-            sub_cell.font = self.subtitle_font
-            sub_cell.alignment = self.left_alignment
-            return row + 3
-        return row + 2
-
-    def add_table_headers(self, ws, headers, row):
-        """Agregar encabezados de tabla con formato"""
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=row, column=col, value=header)
-            cell.font = self.header_font
-            cell.fill = self.header_fill
-            cell.alignment = self.center_alignment
-        return row + 1
-
     def adjust_column_widths(self, worksheet, min_width=8, max_width=60):
         """
         Ajusta el ancho de las columnas según el contenido.
@@ -5170,6 +4959,28 @@ class ModernPortfolioAnalyzerApp(BaseApp):
         self.adjust_column_widths(ws)
         
         return ws
+
+    def create_title_row(self, ws, title, row=1, subtitle=None):
+        """Crear fila de título con formato y opcional subtítulo."""
+        cell = ws.cell(row=row, column=1, value=title)
+        cell.font = self.title_font
+        cell.alignment = self.left_alignment
+        
+        if subtitle:
+            sub_cell = ws.cell(row=row+1, column=1, value=subtitle)
+            sub_cell.font = self.subtitle_font
+            sub_cell.alignment = self.left_alignment
+            return row + 3
+        return row + 2
+
+    def add_table_headers(self, ws, headers, row):
+        """Agregar encabezados de tabla con formato."""
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=row, column=col, value=header)
+            cell.font = self.header_font
+            cell.fill = self.header_fill
+            cell.alignment = self.center_alignment
+        return row + 1
 
     def format_pivot_tables(self, workbook):
         """
@@ -6397,6 +6208,281 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             print(f"Error al crear hoja consolidada II: {str(e)}")
             raise
 
+    def export_summary_sheet(self, writer, final_groups):
+        """Exportar hoja de resumen general."""
+        try:
+            if hasattr(self, 'loading_window'):
+                self.update_loading_message(self.loading_window, "Generando resumen general...")
+            ws_summary = writer.book.create_sheet("Resumen General", 0)
+            current_row = 1
+
+            # Estadísticas generales
+            current_row = self.create_title_row(ws_summary, "Estadísticas Generales")
+            
+            stats_headers = ["Métrica", "Valor", "Porcentaje"]
+            current_row = self.add_table_headers(ws_summary, stats_headers, current_row)
+
+            # Calcular estadísticas
+            stats_data = self._calculate_summary_statistics(final_groups)
+
+            for stat in stats_data:
+                for col, value in enumerate(stat, 1):
+                    cell = ws_summary.cell(row=current_row, column=col, value=value)
+                    cell.font = self.base_font
+                    cell.alignment = self.center_alignment if col > 1 else self.left_alignment
+                current_row += 1
+
+        except Exception as e:
+            print(f"Error al crear resumen general: {str(e)}")
+            raise
+
+    def export_unique_centers_sheet(self, writer):
+        """Exportar hoja de centros únicos."""
+        try:
+            self.update_loading_message(self.loading_window, "Procesando centros únicos...")
+            unique_centers_data = [
+                (center, plus_set) 
+                for center, plus_set in self.unique_portfolios.items()
+                if center not in self.non_compatible
+            ]
+            self.create_centers_sheet(
+                writer.book,
+                "Centros únicos",
+                unique_centers_data,
+                self.base_font,
+                self.header_font,
+                self.header_fill
+            )
+        except Exception as e:
+            print(f"Error al procesar centros únicos: {str(e)}")
+            raise
+
+    def _calculate_summary_statistics(self, final_groups):
+        """Calcular estadísticas para el resumen."""
+        total_centers = int(self.total_centers.get())
+        unique_centers = int(self.unique_centers.get())
+        identical_centers = total_centers - unique_centers
+        initial_masters = len(self.identical_portfolios) + len(self.unique_portfolios)
+        final_masters = len(final_groups) + len(self.non_compatible)
+        optimization_percentage = ((initial_masters - final_masters) / initial_masters * 100 
+                            if initial_masters > 0 else 0)
+        
+        return [
+            ("Total de Centros", total_centers, "100%"),
+            ("Centros en Grupos", identical_centers, f"{(identical_centers/total_centers)*100:.1f}%"),
+            ("Centros Únicos", unique_centers, f"{(unique_centers/total_centers)*100:.1f}%"),
+            ("Grupos Idénticos Iniciales", len(self.identical_portfolios), "-"),
+            ("Planogramas Másteres Iniciales", initial_masters, "-"),
+            ("Planogramas Másteres Finales", final_masters, "-"),
+            ("Optimización de Planogramas", final_masters - initial_masters, 
+            f"{optimization_percentage:.1f}%"),
+            ("Centros sin Recomendación", len(self.non_compatible), 
+            f"{(len(self.non_compatible)/total_centers)*100:.1f}%")
+        ]
+
+    def export_identical_groups_sheet(self, writer):
+        """Exportar hoja de grupos idénticos."""
+        try:
+            self.update_loading_message(self.loading_window, "Procesando grupos idénticos...")
+            ws_identical = writer.book.create_sheet("Grupos Idénticos")
+            current_row = 1
+
+            current_row = self.create_title_row(ws_identical, "Grupos con Portafolios Idénticos")
+            
+            headers = ["Grupo", "Centros", "Cantidad de Centros", "PLUs", "Cantidad de PLUs"]
+            current_row = self.add_table_headers(ws_identical, headers, current_row)
+
+            for i, (centers, plus) in enumerate(self.identical_portfolios.items(), 1):
+                self._add_identical_group_row(ws_identical, current_row, i, centers, plus)
+                current_row += 1
+
+        except Exception as e:
+            print(f"Error al procesar grupos idénticos: {str(e)}")
+            raise
+
+    def _add_identical_group_row(self, worksheet, row, group_num, centers, plus):
+        """Añadir una fila de grupo idéntico."""
+        row_data = [
+            f"Grupo {group_num}",
+            ", ".join(sorted(centers)),
+            len(centers),
+            ", ".join(map(str, sorted(plus))),
+            len(plus)
+        ]
+        
+        for col, value in enumerate(row_data, 1):
+            cell = worksheet.cell(row=row, column=col, value=value)
+            cell.font = self.base_font
+            cell.alignment = self.left_alignment if col in [2, 4] else self.center_alignment
+
+    def export_final_groups_sheet(self, writer, final_groups, geo_data=None, category=None):
+        """Exportar hoja de grupos finales y sus análisis."""
+        try:
+            self.update_loading_message(self.loading_window, "Generando información de grupos finales...")
+            ws_final = writer.book.create_sheet("Grupos Finales")
+            current_row = 1
+
+            current_row = self.create_title_row(ws_final, "Grupos Finales Optimizados")
+            
+            headers = ["Grupo", "Centros", "Cantidad de Centros", 
+                    "PLUs Diferentes", "Cantidad PLUs Dif.", "Total PLUs"]
+            current_row = self.add_table_headers(ws_final, headers, current_row)
+
+            for i, group in enumerate(final_groups, 1):
+                try:
+                    # Exportar grupo principal usando la hoja
+                    self._export_final_group(ws_final, i, group, current_row)
+                    current_row += 1
+
+                    # Crear nueva hoja para el grupo y exportar detalles
+                    ws_group = writer.book.create_sheet(f"Grupo Final {i}")
+                    self.configure_group_final_sheet(ws_group)
+                    
+                    group_row = 1
+                    
+                    # 1. Información básica del grupo
+                    group_row = self.create_title_row(
+                        ws_group, 
+                        f"Grupo Final {i}", 
+                        row=group_row,
+                        subtitle=f"Total centros: {len(group['centers'])}"
+                    )
+                    
+                    # Calcular PLUs diferentes
+                    diff_plus, all_plus = self.calculate_total_different_plus(group['centers'])
+                    
+                    # Lista de centros
+                    headers = ["Centros", "PLUs Diferentes", "Total PLUs"]
+                    group_row = self.add_table_headers(ws_group, headers, group_row)
+                    
+                    # Datos básicos del grupo
+                    group_data = [
+                        ", ".join(sorted(group['centers'])),
+                        ", ".join(map(str, sorted(diff_plus))),
+                        len(all_plus)
+                    ]
+                    
+                    for col, value in enumerate(group_data, 1):
+                        cell = ws_group.cell(row=group_row, column=col, value=value)
+                        cell.font = self.base_font
+                        cell.alignment = self.left_alignment
+                    group_row += 2
+
+                    # Continuar con análisis adicionales si es necesario
+                    if geo_data is not None:
+                        self._add_region_distribution(ws_group, group, geo_data, group_row)
+                    
+                    if category:
+                        self._add_modulation_analysis(ws_group, group, category, group_row)
+
+                except Exception as e:
+                    print(f"Error al procesar Grupo Final {i}: {str(e)}")
+                    continue
+
+        except Exception as e:
+            print(f"Error al generar grupos finales: {str(e)}")
+            raise
+
+    def _export_final_group(self, worksheet, group_num, group, row):
+        """Exportar un grupo final a la hoja."""
+        try:
+            diff_plus, all_plus = self.calculate_total_different_plus(group['centers'])
+            
+            row_data = [
+                f"Grupo Final {group_num}",
+                ", ".join(sorted(group['centers'])),
+                len(group['centers']),
+                ", ".join(map(str, sorted(diff_plus))),
+                len(diff_plus),
+                len(all_plus)
+            ]
+            
+            # Usar worksheet en lugar de writer
+            for col, value in enumerate(row_data, 1):
+                cell = worksheet.cell(row=row, column=col, value=value)
+                cell.font = self.base_font
+                cell.alignment = self.left_alignment if col in [2, 4] else self.center_alignment
+        except Exception as e:
+            print(f"Error al exportar grupo final {group_num}: {str(e)}")
+            raise
+
+    def _export_group_detail_sheet(self, writer, group_num, group, geo_data=None, category=None):
+        """Exportar hoja de detalle para un grupo específico."""
+        self.update_loading_message(self.loading_window, f"Procesando Grupo Final {group_num}...")
+        ws_group = writer.book.create_sheet(f"Grupo Final {group_num}")
+        
+        # Configurar la hoja
+        self.configure_group_final_sheet(ws_group)
+        group_row = 1
+
+        # Información básica
+        group_row = self._export_group_basic_info(ws_group, group_num, group, group_row)
+
+        # Distribución por región
+        if geo_data is not None:
+            group_row = self._export_group_region_distribution(
+                ws_group, group, geo_data, group_row
+            )
+
+        # Análisis de modulación
+        if category:
+            group_row = self._export_group_modulation_analysis(
+                ws_group, group, category, group_row
+            )
+
+        # Ajustar dimensiones
+        self._adjust_sheet_dimensions(ws_group)
+
+    def export_non_compatible_centers_sheet(self, writer):
+        """Exportar hoja de centros no compatibles."""
+        try:
+            self.update_loading_message(self.loading_window, "Procesando centros no compatibles...")
+            non_compatible_data = [
+                (center, self.unique_portfolios[center])
+                for center in sorted(self.non_compatible)
+            ]
+            self.create_centers_sheet(
+                writer.book,
+                "Centros no compatibles",
+                non_compatible_data,
+                self.base_font,
+                self.header_font,
+                self.header_fill
+            )
+        except Exception as e:
+            print(f"Error al procesar centros no compatibles: {str(e)}")
+            raise
+
+    def _adjust_sheet_dimensions(self, worksheet):
+        """Ajustar dimensiones de columnas y filas."""
+        # Ajustar columnas
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
+            
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    continue
+            
+            adjusted_width = (max_length + 2)
+            worksheet.column_dimensions[column_letter].width = min(adjusted_width, 100)
+
+        # Ajustar filas
+        for row in worksheet.rows:
+            max_height = 0
+            for cell in row:
+                if cell.value:
+                    text_lines = str(cell.value).count('\n') + 1
+                    line_height = 15
+                    needed_height = text_lines * line_height
+                    max_height = max(max_height, needed_height)
+            
+            if max_height > 15:
+                worksheet.row_dimensions[row[0].row].height = max_height
+
     def export_to_excel(self):
         # Mostrar diálogo de opciones
         export_options = self.show_export_options()
@@ -6414,7 +6500,7 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             if not file_path:
                 return
 
-            # Validar si el archivo existe
+            # Validar archivo existente
             if os.path.exists(file_path):
                 if not messagebox.askyesno(
                     "Archivo existente",
@@ -6422,452 +6508,362 @@ class ModernPortfolioAnalyzerApp(BaseApp):
                 ):
                     return
                     
-            # Mostrar diálogo de carga
-            loading_window = self.show_loading_spinner("Preparando exportación...")
+            # Mostrar spinner
+            self.loading_window = self.show_loading_spinner("Preparando exportación...")
             
-            # Crear un Excel writer
-            writer = pd.ExcelWriter(file_path, engine='openpyxl')
-
-            # Cargar datos según las opciones seleccionadas
-            self.update_loading_message(loading_window, "Cargando datos necesarios...")
-            
-            # Cargar datos básicos que siempre se necesitan
-            df = pd.read_excel(self.file_path_var.get())
-            if df.empty:
-                raise ValueError("El archivo Excel está vacío")
-                
-            final_groups = self.calculate_final_groups(self.current_plu_limit)
-            
-            # Cargar datos geográficos solo si son necesarios
-            geo_data = None
-            if export_options['analisis_grupos'] and export_options['distribucion_region']:
-                geo_data = self.load_geographic_data()
-                
-            # Preguntar categoría solo si se necesita el análisis de modulación
             category = None
-            if export_options['analisis_grupos'] and export_options['analisis_modulacion']:
+            if (export_options['analisis_grupos'] and export_options['analisis_modulacion']) or \
+            (export_options['agrupacion_personalizada'] and export_options['agrupacion_personalizada_modulacion']):
                 category = self.get_category_input()
 
-            # Configurar estilos base
-            base_font = Font(name='Segoe UI', size=11)
-            header_font = Font(name='Segoe UI', size=11, bold=True)
-            title_font = Font(name='Segoe UI', size=14, bold=True)
-            subtitle_font = Font(name='Segoe UI', size=12, bold=True)
-            
-            # Alineaciones
-            center_alignment = Alignment(horizontal='center', vertical='center')
-            left_alignment = Alignment(horizontal='left', vertical='center')
-            
-            # Colores
-            header_fill = PatternFill(start_color='F3F4F6', end_color='F3F4F6', fill_type='solid')
-            warning_fill = PatternFill(start_color='FEF2F2', end_color='FEF2F2', fill_type='solid')
-            success_fill = PatternFill(start_color='ECFDF5', end_color='ECFDF5', fill_type='solid')
-            alternate_fill = PatternFill(start_color='F9FAFB', end_color='F9FAFB', fill_type='solid')
-            
-            # 1. Resumen General
-            if export_options['resumen']:
+            # Crear Excel writer
+            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
                 try:
-                    self.update_loading_message(loading_window, "Generando resumen general...")
-                    ws_summary = writer.book.create_sheet("Resumen General", 0)
-                    current_row = 1
-
-                    # Estadísticas generales
-                    current_row = self.create_title_row(ws_summary, "Estadísticas Generales")
+                    # Cargar datos básicos según necesidad
+                    self.update_loading_message(self.loading_window, "Cargando datos necesarios...")
                     
-                    stats_headers = ["Métrica", "Valor", "Porcentaje"]
-                    current_row = self.add_table_headers(ws_summary, stats_headers, current_row)
+                    df = None
+                    final_groups = None
+                    geo_data = None
 
-                    # Calcular estadísticas
-                    total_centers = int(self.total_centers.get())
-                    unique_centers = int(self.unique_centers.get())
-                    identical_centers = total_centers - unique_centers
-                    initial_masters = len(self.identical_portfolios) + len(self.unique_portfolios)
-                    final_masters = len(final_groups) + len(self.non_compatible)
-                    optimization_percentage = ((initial_masters - final_masters) / initial_masters * 100 
-                                            if initial_masters > 0 else 0)
-                    
-                    stats_data = [
-                        ("Total de Centros", total_centers, "100%"),
-                        ("Centros en Grupos", identical_centers, f"{(identical_centers/total_centers)*100:.1f}%"),
-                        ("Centros Únicos", unique_centers, f"{(unique_centers/total_centers)*100:.1f}%"),
-                        ("Grupos Idénticos Iniciales", len(self.identical_portfolios), "-"),
-                        ("Planogramas Másteres Iniciales", initial_masters, "-"),
-                        ("Planogramas Másteres Finales", final_masters, "-"),
-                        ("Optimización de Planogramas", final_masters - initial_masters, f"{optimization_percentage:.1f}%"),
-                        ("Centros sin Recomendación", len(self.non_compatible), 
-                        f"{(len(self.non_compatible)/total_centers)*100:.1f}%")
-                    ]
+                    # Cargar datos solo si son necesarios
+                    df = self._load_basic_data(export_options) if self._needs_basic_data(export_options) else None
+                    final_groups = self.calculate_final_groups(self.current_plu_limit) if self._needs_final_groups(export_options) else None
+                    geo_data = self.load_geographic_data() if self._needs_geo_data(export_options) else None
 
-                    for stat in stats_data:
-                        for col, value in enumerate(stat, 1):
-                            cell = ws_summary.cell(row=current_row, column=col, value=value)
-                            cell.font = base_font
-                            cell.alignment = center_alignment if col > 1 else left_alignment
-                        current_row += 1
+                    # Resumen General
+                    if export_options['resumen']:
+                        self.export_summary_sheet(writer, final_groups)
 
-                except Exception as e:
-                    print(f"Error al crear resumen general: {str(e)}")
+                    # Grupos Idénticos
+                    if export_options['grupos_identicos']:
+                        self.export_identical_groups_sheet(writer)
 
+                    # Grupos Finales
+                    if export_options['grupos_finales']:
+                        self.export_final_groups_sheet(writer, final_groups, geo_data, category)
 
-            # 2. Grupos Idénticos
-            if export_options['grupos_identicos']:
-                try:
-                    self.update_loading_message(loading_window, "Procesando grupos idénticos...")
-                    ws_identical = writer.book.create_sheet("Grupos Idénticos")
-                    current_row = 1
+                    # Centros Únicos
+                    if export_options['centros_unicos']:
+                        self.export_unique_centers_sheet(writer)
 
-                    current_row = self.create_title_row(ws_identical, "Grupos con Portafolios Idénticos")
-                    
-                    # Información detallada de grupos
-                    headers = ["Grupo", "Centros", "Cantidad de Centros", "PLUs", "Cantidad de PLUs"]
-                    current_row = self.add_table_headers(ws_identical, headers, current_row)
+                    # Centros No Compatibles
+                    if export_options['centros_no_compatibles']:
+                        self.export_non_compatible_centers_sheet(writer)
 
-                    for i, (centers, plus) in enumerate(self.identical_portfolios.items(), 1):
-                        row_data = [
-                            f"Grupo {i}",
-                            ", ".join(sorted(centers)),
-                            len(centers),
-                            ", ".join(map(str, sorted(plus))),
-                            len(plus)
-                        ]
-                        
-                        for col, value in enumerate(row_data, 1):
-                            cell = ws_identical.cell(row=current_row, column=col, value=value)
-                            cell.font = base_font
-                            cell.alignment = left_alignment if col in [2, 4] else center_alignment
-                        current_row += 1
+                    # Ajustar formato final
+                    self.update_loading_message(self.loading_window, "Aplicando formato final...")
+                    self.format_pivot_tables(writer.book)
 
-                except Exception as e:
-                    print(f"Error al procesar grupos idénticos: {str(e)}")
+                    # Análisis de Variación
+                    if export_options['analisis_variacion']:
+                        self.add_variation_analysis_sheets(writer)
 
-            # 3. Grupos Finales
-            if export_options['grupos_finales']:
-                try:
-                    self.update_loading_message(loading_window, "Generando información de grupos finales...")
-                    ws_final = writer.book.create_sheet("Grupos Finales")
-                    current_row = 1
+                    # Consolidado
+                    if export_options['consolidado']:
+                        self.add_consolidated_sheet(writer)
 
-                    current_row = self.create_title_row(ws_final, "Grupos Finales Optimizados")
-                    
-                    headers = ["Grupo", "Centros", "Cantidad de Centros", "PLUs Diferentes", 
-                            "Cantidad PLUs Dif.", "Total PLUs"]
-                    current_row = self.add_table_headers(ws_final, headers, current_row)
+                    # Sheet1 (Datos originales)
+                    if export_options['sheet1']:
+                        self.add_initial_sheet(writer)
 
-                    if export_options['analisis_grupos']:
-                        for i, group in enumerate(final_groups, 1):
-                            try:
-                                diff_plus, all_plus = self.calculate_total_different_plus(group['centers'])
-                                
-                                row_data = [
-                                    f"Grupo Final {i}",
-                                    ", ".join(sorted(group['centers'])),
-                                    len(group['centers']),
-                                    ", ".join(map(str, sorted(diff_plus))),
-                                    len(diff_plus),
-                                    len(all_plus)
-                                ]
-                                
-                                for col, value in enumerate(row_data, 1):
-                                    cell = ws_final.cell(row=current_row, column=col, value=value)
-                                    cell.font = base_font
-                                    cell.alignment = left_alignment if col in [2, 4] else center_alignment
-                                current_row += 1
-
-                                # Crear hoja individual para cada grupo final
-                                self.update_loading_message(loading_window, f"Procesando Grupo Final {i}...")
-                                ws_group = writer.book.create_sheet(f"Grupo Final {i}")
-
-                                # En cada hoja de grupo final, después de crear la hoja:
-                                self.configure_group_final_sheet(ws_group)
-
-                                group_row = 1  # Inicializar group_row
-
-                                # 1. Información básica del grupo
-                                group_row = self.create_title_row(
-                                    ws_group, 
-                                    f"Grupo Final {i}", 
-                                    row=1,
-                                    subtitle=f"Total centros: {len(group['centers'])}"
-                                )
-
-                                # Lista de centros
-                                headers = ["Centros", "PLUs Diferentes", "Total PLUs"]
-                                group_row = self.add_table_headers(ws_group, headers, group_row)
-
-                                # Datos básicos del grupo
-                                group_data = [
-                                    ", ".join(sorted(group['centers'])),
-                                    ", ".join(map(str, sorted(diff_plus))),
-                                    len(all_plus)
-                                ]
-
-                                for col, value in enumerate(group_data, 1):
-                                    cell = ws_group.cell(row=group_row, column=col, value=value)
-                                    cell.font = base_font
-                                    cell.alignment = left_alignment
-                                group_row += 2
-
-                                # 2. Resumen por región
-                                if export_options['distribucion_region'] and geo_data is not None:
-                                    group_row = self.create_title_row(ws_group, "Distribución por Región", group_row)
-                                    
-                                    # Obtener datos del grupo
-                                    group_geo_data = geo_data[geo_data['Centro'].isin(group['centers'])]
-                                    
-                                    # Análisis por distrito
-                                    district_headers = ["Distrito", "Región", "Cantidad", "Porcentaje", "Centros"]
-                                    group_row = self.add_table_headers(ws_group, district_headers, group_row)
-                                    
-                                    district_colors = {
-                                        'COSTA': PatternFill(start_color='E3F2FD', end_color='E3F2FD', fill_type='solid'),
-                                        'INTERIOR': PatternFill(start_color='E8F5E9', end_color='E8F5E9', fill_type='solid')
-                                    }
-
-                                    for district in group_geo_data['Distrito'].unique():
-                                        district_data = group_geo_data[group_geo_data['Distrito'] == district]
-                                        
-                                        for region in district_data['Region'].unique():
-                                            region_data = district_data[district_data['Region'] == region]
-                                            centers = region_data['Centro'].tolist()
-                                            percentage = (len(centers) / len(group['centers'])) * 100
-                                            
-                                            row_data = [
-                                                district,
-                                                region,
-                                                len(centers),
-                                                f"{percentage:.1f}%",
-                                                ", ".join(sorted(centers))
-                                            ]
-                                            
-                                            for col, value in enumerate(row_data, 1):
-                                                cell = ws_group.cell(row=group_row, column=col, value=value)
-                                                cell.font = base_font
-                                                cell.alignment = left_alignment if col == 5 else center_alignment
-                                                cell.fill = district_colors.get(district, alternate_fill)
-                                            group_row += 1
-                                    group_row += 2
-
-                                    # 3. Análisis de modulación
-                                    if export_options['analisis_modulacion'] and category:  # Si se seleccionó una categoría para el análisis
-                                        group_row = self.create_title_row(
-                                            ws_group,
-                                            "Análisis de Modulación",
-                                            group_row,
-                                            subtitle=f"Categoría: {category}"
-                                        )
-                                        
-                                        modulation_data = self.get_modulation_data(group['centers'], category)
-                                        if modulation_data:
-                                            headers = ["No. Módulos", "Cantidad de Centros", "Porcentaje", "Centros"]
-                                            group_row = self.add_table_headers(ws_group, headers, group_row)
-                                            
-                                            total_centers = sum(data['count'] for data in modulation_data.values())
-                                            
-                                            for num_modulos, data in modulation_data.items():
-                                                percentage = (data['count'] / total_centers) * 100
-                                                row_data = [
-                                                    num_modulos,
-                                                    data['count'],
-                                                    f"{percentage:.1f}%",
-                                                    ", ".join(sorted(data['centers']))
-                                                ]
-                                                
-                                                for col, value in enumerate(row_data, 1):
-                                                    cell = ws_group.cell(row=group_row, column=col, value=value)
-                                                    cell.font = base_font
-                                                    cell.alignment = left_alignment if col == 4 else center_alignment
-                                                    
-                                                    # Colorear según el tipo de dato
-                                                    if num_modulos == "Datos vacíos":
-                                                        cell.fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
-                                                    elif num_modulos == "No encontrados":
-                                                        cell.fill = warning_fill
-                                                group_row += 1
-                                        else:
-                                            cell = ws_group.cell(
-                                                row=group_row,
-                                                column=1,
-                                                value="No se encontraron datos de modulación para este grupo"
-                                            )
-                                            cell.font = base_font
-                                            cell.fill = warning_fill
-                                            group_row += 1
-
-                                    # Ajustar columnas al final
-                                    for column in ws_group.columns:
-                                        max_length = 0
-                                        column_letter = get_column_letter(column[0].column)
-                                        
-                                        for cell in column:
-                                            try:
-                                                if len(str(cell.value)) > max_length:
-                                                    max_length = len(str(cell.value))
-                                            except:
-                                                pass
-                                        
-                                        adjusted_width = (max_length + 2)
-                                        ws_group.column_dimensions[column_letter].width = min(adjusted_width, 100)
-
-                                    # Ajustar altura de filas
-                                    for row in ws_group.rows:
-                                        max_height = 0
-                                        for cell in row:
-                                            if cell.value:
-                                                text_lines = str(cell.value).count('\n') + 1
-                                                line_height = 15  # altura aproximada por línea
-                                                needed_height = text_lines * line_height
-                                                max_height = max(max_height, needed_height)
-                                        
-                                        if max_height > 15:  # altura mínima
-                                            ws_group.row_dimensions[row[0].row].height = max_height
-
-                            except Exception as e:
-                                 print(f"Error al procesar Grupo Final {i}: {str(e)}")
-
-                    self.update_loading_message(loading_window, "Creando hojas adicionales...")
+                    # Agrupación Personalizada (usar la misma categoría)
+                    if export_options['agrupacion_personalizada']:
+                        if hasattr(self, 'custom_groups') and self.custom_groups:
+                            self.update_loading_message(self.loading_window, "Exportando agrupación personalizada...")
+                            
+                            # Ya no pedimos la categoría aquí, usamos la que ya tenemos
+                            self.add_custom_grouping_sheet(writer, self.custom_groups, category)
+                            
+                            if export_options['consolidado_personalizado']:
+                                self.update_loading_message(self.loading_window, 
+                                    "Generando consolidado de grupos personalizados...")
+                                self.add_custom_grouping_consolidated(writer, self.custom_groups, category)
+                            
+                            if export_options['agrupacion_personalizada_variacion']:
+                                self.update_loading_message(self.loading_window, 
+                                    "Exportando análisis de variación para grupos personalizados...")
+                                self._export_custom_variation_analysis(writer)
+                        else:
+                            messagebox.showwarning("Aviso", "No se ha realizado una agrupación personalizada.")
 
                 except Exception as e:
-                    print(f"Error al generar grupos finales: {str(e)}")
+                    print(f"Error durante la exportación: {str(e)}")
+                    raise
 
-
-            # Centros Únicos
-            if export_options['centros_unicos']:
-                try:
-                    self.update_loading_message(loading_window, "Procesando centros únicos...")
-                    unique_centers_data = [
-                        (center, plus_set) 
-                        for center, plus_set in self.unique_portfolios.items()
-                        if center not in self.non_compatible
-                    ]
-                    self.create_centers_sheet(
-                        writer.book,
-                        "Centros únicos",
-                        unique_centers_data,
-                        base_font,
-                        header_font,
-                        header_fill
-                    )
-                except Exception as e:
-                    print(f"Error al procesar centros únicos: {str(e)}")
-
-            # Centros No Compatibles
-            if export_options['centros_no_compatibles']:
-                try:
-                    self.update_loading_message(loading_window, "Procesando centros no compatibles...")
-                    non_compatible_data = [
-                        (center, self.unique_portfolios[center])
-                        for center in sorted(self.non_compatible)
-                    ]
-                    self.create_centers_sheet(
-                        writer.book,
-                        "Centros no compatibles",
-                        non_compatible_data,
-                        base_font,
-                        header_font,
-                        header_fill
-                    )
-                except Exception as e:
-                    print(f"Error al procesar centros no compatibles: {str(e)}")
-
-            # Ajustar formato de todas las hojas
-            self.update_loading_message(loading_window, "Aplicando formato final...")
-            self.format_pivot_tables(writer.book)
-
-            # Análisis de Variación
-            if export_options['analisis_variacion']:
-                try:
-                    self.update_loading_message(loading_window, "Exportando análisis de variación...")
-                    self.add_variation_analysis_sheets(writer)
-                except Exception as e:
-                    print(f"Error al agregar hojas de análisis de variación: {str(e)}")
-
-            # Consolidado
-            if export_options['consolidado']:
-                try:
-                    self.update_loading_message(loading_window, "Generando hoja consolidada...")
-                    self.add_consolidated_sheet(writer)
-                except Exception as e:
-                    print(f"Error al agregar hoja consolidada: {str(e)}")
-
-            # Sheet1 (Datos originales)
-            if export_options['sheet1']:
-                try:
-                    self.update_loading_message(loading_window, "Copiando datos originales...")
-                    self.add_initial_sheet(writer)
-                except Exception as e:
-                    print(f"Error al copiar datos originales: {str(e)}")
-
-            # agrupación personalizada
-            if export_options['agrupacion_personalizada']:
-                try:
-                    # Verificar si existen grupos personalizados
-                    if hasattr(self, 'custom_groups') and self.custom_groups:
-                        self.update_loading_message(loading_window, "Exportando agrupación personalizada...")
-                        
-                        # Análisis de modulación solo si está seleccionado
-                        category = None
-                        if export_options['agrupacion_personalizada_modulacion']:
-                            category = self.get_category_input()
-                        
-                        # Exportar grupos personalizados
-                        self.add_custom_grouping_sheet(writer, self.custom_groups, category)
-                        
-                        # Consolidado II solo si está seleccionado
-                        if export_options['consolidado_personalizado']:
-                            self.update_loading_message(loading_window, "Generando consolidado de grupos personalizados...")
-                            self.add_custom_grouping_consolidated(writer, self.custom_groups, category)
-                        
-                        # Análisis de variación solo si está seleccionado
-                        if export_options['agrupacion_personalizada_variacion']:
-                            self.update_loading_message(loading_window, 
-                                "Exportando análisis de variación para grupos personalizados...")
-                            for i, group in enumerate(self.custom_groups, 1):
-                                group_name = self.get_group_name(group)
-                                sheet_name = f'Var. {group_name}'
-                                self.add_variation_analysis_for_group(writer, group['centers'], sheet_name)
-                                
-                    else:
-                        messagebox.showwarning("Aviso", "No se ha realizado una agrupación personalizada.")
-                        
-                except Exception as e:
-                    print(f"Error al exportar agrupación personalizada: {str(e)}")
-
-            # Finalizar exportación
-            writer.close()
-            
-            # Verificar archivo y mostrar mensajes
-            if os.path.exists(file_path):
-                file_size = os.path.getsize(file_path)
-                if file_size > 0:
-                    try:
-                        pd.ExcelFile(file_path)
-                        loading_window.destroy()
-                        messagebox.showinfo(
-                            "Exportación Exitosa",
-                            f"Archivo Excel exportado correctamente\n"
-                            f"Ubicación: {file_path}\n"
-                            f"Tamaño: {file_size/1024:.1f} KB"
-                        )
-                        if messagebox.askyesno("Abrir Archivo", "¿Desea abrir el archivo exportado?"):
-                            os.startfile(file_path)
-                    except Exception as e:
-                        loading_window.destroy()
-                        messagebox.showerror("Error", f"El archivo se creó pero podría estar corrupto: {str(e)}")
-                else:
-                    loading_window.destroy()
-                    messagebox.showerror("Error", "El archivo se creó pero está vacío")
-            else:
-                loading_window.destroy()
-                messagebox.showerror("Error", "No se pudo crear el archivo")
+            # Verificar y finalizar exportación
+            self._verify_and_finish_export(file_path, self.loading_window)
                     
         except Exception as e:
-            if 'loading_window' in locals():
-                loading_window.destroy()
+            # Limpiar la referencia a loading_window
+            if hasattr(self, 'loading_window'):
+                self.loading_window.destroy()
+                delattr(self, 'loading_window')
             messagebox.showerror("Error", f"Error al exportar el archivo: {str(e)}")
+
+    def _add_region_distribution(self, worksheet, group, geo_data, row):
+        """Agregar distribución por región a la hoja del grupo."""
+        try:
+            row = self.create_title_row(worksheet, "Distribución por Región", row)
+            
+            # Obtener datos del grupo
+            group_geo_data = geo_data[geo_data['Centro'].isin(group['centers'])]
+            
+            # Análisis por distrito
+            district_headers = ["Distrito", "Región", "Cantidad", "Porcentaje", "Centros"]
+            row = self.add_table_headers(worksheet, district_headers, row)
+            
+            # Colores para distritos
+            district_colors = {
+                'COSTA': PatternFill(start_color='E3F2FD', end_color='E3F2FD', fill_type='solid'),
+                'INTERIOR': PatternFill(start_color='E8F5E9', end_color='E8F5E9', fill_type='solid')
+            }
+
+            # Procesar cada distrito
+            for district in group_geo_data['Distrito'].unique():
+                district_data = group_geo_data[group_geo_data['Distrito'] == district]
+                
+                for region in district_data['Region'].unique():
+                    region_data = district_data[district_data['Region'] == region]
+                    centers = region_data['Centro'].tolist()
+                    percentage = (len(centers) / len(group['centers'])) * 100
+                    
+                    row_data = [
+                        district,
+                        region,
+                        len(centers),
+                        f"{percentage:.1f}%",
+                        ", ".join(sorted(centers))
+                    ]
+                    
+                    for col, value in enumerate(row_data, 1):
+                        cell = worksheet.cell(row=row, column=col, value=value)
+                        cell.font = self.base_font
+                        cell.alignment = self.left_alignment if col == 5 else self.center_alignment
+                        cell.fill = district_colors.get(district, self.alternate_fill)
+                    row += 1
+                    
+            return row + 2
+
+        except Exception as e:
+            print(f"Error al agregar distribución por región: {str(e)}")
+            raise
+
+    def _add_modulation_analysis(self, worksheet, group, category, row):
+        """Agregar análisis de modulación a la hoja del grupo."""
+        try:
+            row = self.create_title_row(
+                worksheet,
+                "Análisis de Modulación",
+                row,
+                subtitle=f"Categoría: {category}"
+            )
+            
+            modulation_data = self.get_modulation_data(group['centers'], category)
+            if modulation_data:
+                headers = ["No. Módulos", "Cantidad de Centros", "Porcentaje", "Centros"]
+                row = self.add_table_headers(worksheet, headers, row)
+                
+                total_centers = sum(data['count'] for data in modulation_data.values())
+                
+                for num_modulos, data in modulation_data.items():
+                    percentage = (data['count'] / total_centers) * 100
+                    row_data = [
+                        num_modulos,
+                        data['count'],
+                        f"{percentage:.1f}%",
+                        ", ".join(sorted(data['centers']))
+                    ]
+                    
+                    for col, value in enumerate(row_data, 1):
+                        cell = worksheet.cell(row=row, column=col, value=value)
+                        cell.font = self.base_font
+                        cell.alignment = self.left_alignment if col == 4 else self.center_alignment
+                        
+                        # Colorear según el tipo de dato
+                        if num_modulos == "Datos vacíos":
+                            cell.fill = PatternFill(start_color='FEF3C7', end_color='FEF3C7', fill_type='solid')
+                        elif num_modulos == "No encontrados":
+                            cell.fill = self.warning_fill
+                    row += 1
+            else:
+                cell = worksheet.cell(
+                    row=row,
+                    column=1,
+                    value="No se encontraron datos de modulación para este grupo"
+                )
+                cell.font = self.base_font
+                cell.fill = self.warning_fill
+                row += 1
+
+            return row + 2
+
+        except Exception as e:
+            print(f"Error al agregar análisis de modulación: {str(e)}")
+            raise
+
+    def _export_custom_variation_analysis(self, writer):
+        """Exportar análisis de variación para grupos personalizados."""
+        try:
+            self.update_loading_message(self.loading_window, 
+                "Exportando análisis de variación para grupos personalizados...")
+            
+            for i, group in enumerate(self.custom_groups, 1):
+                try:
+                    # Obtener nombre del grupo
+                    group_name = self.get_group_name(group)
+                    sheet_name = f'Var. {group_name}'
+                    
+                    # Verificar longitud del nombre de la hoja
+                    if len(sheet_name) > 31:  # Excel tiene límite de 31 caracteres
+                        sheet_name = f'Var. Grupo {i}'
+                    
+                    # Exportar análisis de variación para este grupo
+                    self.add_variation_analysis_for_group(
+                        writer,
+                        group['centers'],
+                        sheet_name
+                    )
+                    
+                except Exception as e:
+                    print(f"Error al exportar variación del grupo {i}: {str(e)}")
+                    continue
+
+        except Exception as e:
+            print(f"Error al exportar análisis de variación personalizado: {str(e)}")
+            raise
+
+    def _adjust_group_sheet_dimensions(self, worksheet):
+        """Ajustar dimensiones de la hoja de grupo."""
+        try:
+            # Ajustar columnas
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                
+                for cell in column:
+                    try:
+                        if cell.value:
+                            max_length = max(max_length, len(str(cell.value)))
+                    except:
+                        continue
+                
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column_letter].width = min(adjusted_width, 100)
+
+            # Ajustar filas
+            for row in worksheet.rows:
+                max_height = 0
+                for cell in row:
+                    if cell.value:
+                        text_lines = str(cell.value).count('\n') + 1
+                        line_height = 15
+                        needed_height = text_lines * line_height
+                        max_height = max(max_height, needed_height)
+                
+                if max_height > 15:
+                    worksheet.row_dimensions[row[0].row].height = max_height
+
+        except Exception as e:
+            print(f"Error al ajustar dimensiones de la hoja: {str(e)}")
+
+    def _needs_basic_data(self, options):
+        """Verificar si se necesitan datos básicos."""
+        return any([
+            options['sheet1'],
+            options['analisis_variacion'],
+            options['consolidado']
+        ])
+
+    def _needs_final_groups(self, options):
+        """Verificar si se necesitan grupos finales."""
+        return any([
+            options['resumen'],
+            options['grupos_finales'],
+            options['analisis_grupos']
+        ])
+
+    def _needs_geo_data(self, options):
+        """Verificar si se necesitan datos geográficos."""
+        return options['analisis_grupos'] and options['distribucion_region']
+
+    def _needs_modulation_analysis(self, options):
+        """Verificar si se necesita análisis de modulación."""
+        return options['analisis_grupos'] and options['analisis_modulacion']
+
+    def _load_basic_data(self, options):
+        """Cargar datos básicos del archivo Excel."""
+        df = pd.read_excel(self.file_path_var.get())
+        if df.empty:
+            raise ValueError("El archivo Excel está vacío")
+        return df
+
+    def export_custom_grouping(self, writer, options):
+        """Exportar agrupación personalizada."""
+        if hasattr(self, 'custom_groups') and self.custom_groups:
+            self.update_loading_message(self.loading_window, "Exportando agrupación personalizada...")
+            
+            # Análisis de modulación
+            category = self.get_category_input() if options['agrupacion_personalizada_modulacion'] else None
+            
+            # Exportar grupos
+            self.add_custom_grouping_sheet(writer, self.custom_groups, category)
+            
+            # Consolidado II
+            if options['consolidado_personalizado']:
+                self.add_custom_grouping_consolidated(writer, self.custom_groups, category)
+            
+            # Análisis de variación
+            if options['agrupacion_personalizada_variacion']:
+                self._export_custom_variation_analysis(writer)
+        else:
+            messagebox.showwarning("Aviso", "No se ha realizado una agrupación personalizada.")
+
+    def _verify_and_finish_export(self, file_path, loading_window):
+        """Verificar el archivo exportado y mostrar mensajes finales."""
+        if os.path.exists(file_path):
+            file_size = os.path.getsize(file_path)
+            if file_size > 0:
+                try:
+                    pd.ExcelFile(file_path)
+                    loading_window.destroy()
+                    self._show_success_message(file_path, file_size)
+                except Exception as e:
+                    loading_window.destroy()
+                    messagebox.showerror("Error", f"El archivo se creó pero podría estar corrupto: {str(e)}")
+            else:
+                loading_window.destroy()
+                messagebox.showerror("Error", "El archivo se creó pero está vacío")
+        else:
+            loading_window.destroy()
+            messagebox.showerror("Error", "No se pudo crear el archivo")
+
+    def _show_success_message(self, file_path, file_size):
+        """Mostrar mensaje de éxito y preguntar si abrir el archivo."""
+        messagebox.showinfo(
+            "Exportación Exitosa",
+            f"Archivo Excel exportado correctamente\n"
+            f"Ubicación: {file_path}\n"
+            f"Tamaño: {file_size/1024:.1f} KB"
+        )
+        if messagebox.askyesno("Abrir Archivo", "¿Desea abrir el archivo exportado?"):
+            os.startfile(file_path)
 
     def create_results_tabs(self, parent):
             self.notebook = ttk.Notebook(parent, style="Custom.TNotebook")
             self.notebook.pack(fill=tk.BOTH, expand=True)
+
+            def configure_canvas_events(canvas, canvas_window, frame):
+                def _on_frame_configure(event=None):
+                    canvas.configure(scrollregion=canvas.bbox("all"))
+                    canvas.itemconfig(canvas_window, width=canvas.winfo_width())
+                    
+                def _on_canvas_configure(event=None):
+                    canvas.itemconfig(canvas_window, width=event.width)
+                    _on_frame_configure()
+                    
+                frame.bind("<Configure>", _on_frame_configure)
+                canvas.bind("<Configure>", _on_canvas_configure)
             
             # Pestaña de portafolios idénticos
             identical_frame = ttk.Frame(self.notebook, style="Card.TFrame")
@@ -6985,21 +6981,33 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             for i in range(3):
                 self.summary_grid.columnconfigure(i, weight=1)
             
+            # Pestaña de Resumen II
+            summary_ii_frame = ttk.Frame(self.notebook, style="Card.TFrame")
+            self.notebook.add(summary_ii_frame, text="Resumen II")
+            summary_ii_frame.pack_propagate(False)
+
+            # Canvas con scrollbar para Resumen II
+            self.summary_ii_canvas = tk.Canvas(summary_ii_frame, bg='white', highlightthickness=0)
+            self.summary_ii_scrollbar = ttk.Scrollbar(summary_ii_frame, orient="vertical", command=self.summary_ii_canvas.yview)
+
+            self.summary_ii_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            self.summary_ii_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            # Crear summary_ii_grid
+            self.summary_ii_grid = ttk.Frame(self.summary_ii_canvas, style="Card.TFrame")
+            self.summary_ii_window = self.summary_ii_canvas.create_window((0, 0), window=self.summary_ii_grid, anchor='nw')
+            self.summary_ii_canvas.configure(yscrollcommand=self.summary_ii_scrollbar.set)
+            self.bind_scrolling(self.summary_ii_canvas, self.summary_ii_scrollbar)
+
+            # Configurar columnas para summary_ii_grid
+            for i in range(3):
+                self.summary_ii_grid.columnconfigure(i, weight=1)
+
+            # Agregar a la configuración de eventos de canvas
+            configure_canvas_events(self.summary_ii_canvas, self.summary_ii_window, self.summary_ii_grid)
+
             summary_canvas_window = summary_canvas.create_window((0, 0), window=self.summary_grid, anchor='nw')
-            
-            # Configurar los eventos de scroll y redimensionamiento para todos los canvas
-            def configure_canvas_events(canvas, canvas_window, frame):
-                def _on_frame_configure(event=None):
-                    canvas.configure(scrollregion=canvas.bbox("all"))
-                    canvas.itemconfig(canvas_window, width=canvas.winfo_width())
-                    
-                def _on_canvas_configure(event=None):
-                    canvas.itemconfig(canvas_window, width=event.width)
-                    _on_frame_configure()
-                    
-                frame.bind("<Configure>", _on_frame_configure)
-                canvas.bind("<Configure>", _on_canvas_configure)
-            
+          
             # Aplicar configuración a todos los canvas
             configure_canvas_events(canvas, canvas_window, self.groups_grid)
             configure_canvas_events(unique_canvas, unique_canvas_window, self.unique_grid)
@@ -7022,13 +7030,16 @@ class ModernPortfolioAnalyzerApp(BaseApp):
                     group_recommendations_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
                 elif tab_name == "Resumen":
                     summary_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-            
+                elif tab_name == "Resumen II":
+                    self.summary_ii_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
             # Bind mousewheel event to all frames
             identical_frame.bind("<MouseWheel>", _on_mousewheel)
             unique_frame.bind("<MouseWheel>", _on_mousewheel)
             recommendations_frame.bind("<MouseWheel>", _on_mousewheel)
             group_recommendations_frame.bind("<MouseWheel>", _on_mousewheel)
             summary_frame.bind("<MouseWheel>", _on_mousewheel)
+            summary_ii_frame.bind("<MouseWheel>", _on_mousewheel) 
             
             # Configurar yscrollcommand para todos los canvas
             canvas.configure(yscrollcommand=scrollbar.set)
@@ -7036,7 +7047,7 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             recommendations_canvas.configure(yscrollcommand=recommendations_scrollbar.set)
             group_recommendations_canvas.configure(yscrollcommand=group_recommendations_scrollbar.set)
             summary_canvas.configure(yscrollcommand=summary_scrollbar.set)
-            
+
             return self.notebook
 
     def bind_scrolling(self, canvas, scrollbar):
@@ -7087,16 +7098,6 @@ class ModernPortfolioAnalyzerApp(BaseApp):
         
         # Vincular al evento de cambio de pestaña
         canvas.bind("<Visibility>", on_tab_change)
-
-    def update_ui(self):
-        # Actualizar solo cada 100ms
-        if not hasattr(self, '_last_update'):
-            self._last_update = 0
-        
-        current_time = time.time() * 1000
-        if current_time - self._last_update > 100:
-            self.root.update_idletasks()
-            self._last_update = current_time
 
     def load_items_lazily(self, parent_frame, items, create_item_func):
         BATCH_SIZE = 10
@@ -9188,6 +9189,649 @@ class ModernPortfolioAnalyzerApp(BaseApp):
                 center_frame.grid(row=row, column=col, padx=5, pady=5, sticky='ew')
                 self.summary_grid.grid_rowconfigure(row, weight=1)
 
+    def optimize_groups_by_geography(self):
+        """
+        Optimiza los grupos pequeños y centros sin recomendación usando criterios geográficos.
+        """
+        try:
+            # Cargar datos geográficos
+            geo_data = self.load_geographic_data()
+            if geo_data is None:
+                raise ValueError("No se pudieron cargar los datos geográficos")
+
+            # Obtener grupos finales actuales
+            current_groups = self.calculate_final_groups(self.current_plu_limit)
+            
+            # Identificar grupos pequeños (menos de 10 centros)
+            small_groups = []
+            normal_groups = []
+            for group in current_groups:
+                if len(group['centers']) < 10:
+                    small_groups.append(group)
+                else:
+                    normal_groups.append(group)
+
+            # Recolectar todos los centros que necesitan reasignación
+            centers_to_assign = set()
+            for group in small_groups:
+                centers_to_assign.update(group['centers'])
+            centers_to_assign.update(self.non_compatible)
+
+            # Crear DataFrame con información geográfica solo para los centros relevantes
+            centers_geo = geo_data[geo_data['Centro'].isin(centers_to_assign)].copy()
+            
+            # Crear matriz de similitud geográfica
+            def calculate_geo_similarity(row1, row2):
+                """Calcula similitud geográfica entre dos centros."""
+                score = 0
+                if row1['Distrito'] == row2['Distrito']:
+                    score += 4  # Mayor peso al distrito
+                if row1['Region'] == row2['Region']:
+                    score += 3  # Peso medio-alto a la región
+                if row1['Departamento'] == row2['Departamento']:
+                    score += 2  # Peso medio al departamento
+                if row1['Estrato'] == row2['Estrato']:
+                    score += 1  # Peso menor al estrato
+                return score
+
+            # Crear grupos geográficos optimizados
+            new_groups = []
+            remaining_centers = set(centers_to_assign)
+
+            while remaining_centers:
+                # Tomar un centro como semilla
+                seed_center = remaining_centers.pop()
+                seed_data = centers_geo[centers_geo['Centro'] == seed_center].iloc[0]
+                
+                current_group = {seed_center}
+                
+                # Encontrar centros similares
+                best_matches = []
+                for center in remaining_centers:
+                    center_data = centers_geo[centers_geo['Centro'] == center].iloc[0]
+                    similarity = calculate_geo_similarity(seed_data, center_data)
+                    best_matches.append((center, similarity))
+                
+                # Ordenar por similitud
+                best_matches.sort(key=lambda x: x[1], reverse=True)
+                
+                # Agregar los mejores matches al grupo
+                for center, similarity in best_matches:
+                    if similarity >= 4:  # Mínimo distrito igual
+                        current_group.add(center)
+                        remaining_centers.discard(center)
+                        
+                        # Limitar tamaño del grupo
+                        if len(current_group) >= 20:  # Tamaño máximo razonable
+                            break
+                
+                # Agregar el nuevo grupo
+                if len(current_group) >= 3:  # Mínimo 3 centros por grupo
+                    new_groups.append({
+                        'centers': current_group,
+                        'criteria': {
+                            'Distrito': seed_data['Distrito'],
+                            'Region': seed_data['Region'],
+                            'Departamento': seed_data['Departamento'],
+                            'Estrato': seed_data['Estrato']
+                        }
+                    })
+                else:
+                    # Si el grupo es muy pequeño, intentar unirlo a un grupo existente
+                    best_group = None
+                    best_similarity = -1
+                    
+                    for group in new_groups:
+                        group_center = next(iter(group['centers']))
+                        group_data = centers_geo[centers_geo['Centro'] == group_center].iloc[0]
+                        similarity = calculate_geo_similarity(seed_data, group_data)
+                        
+                        if similarity > best_similarity:
+                            best_similarity = similarity
+                            best_group = group
+                    
+                    if best_group and best_similarity >= 3:
+                        best_group['centers'].update(current_group)
+                    else:
+                        # Si no se puede unir, crear grupo nuevo
+                        new_groups.append({
+                            'centers': current_group,
+                            'criteria': {
+                                'Distrito': seed_data['Distrito'],
+                                'Region': seed_data['Region'],
+                                'Departamento': seed_data['Departamento'],
+                                'Estrato': seed_data['Estrato']
+                            }
+                        })
+
+            # Combinar grupos normales con nuevos grupos
+            final_optimized_groups = normal_groups + new_groups
+            
+            return final_optimized_groups
+            
+        except Exception as e:
+            print(f"Error en optimize_groups_by_geography: {str(e)}")
+            return None
+
+    def update_summary_ii_tab(self):
+        """
+        Actualiza la pestaña de Resumen II con los grupos optimizados geográficamente.
+        """
+        # Limpiar el grid existente
+        for widget in self.summary_ii_grid.winfo_children():
+            widget.destroy()
+        
+        try:
+            # Cargar datos geográficos
+            geo_data = self.load_geographic_data()
+            if geo_data is None:
+                return
+
+            # Obtener grupos actuales
+            current_groups = self.calculate_final_groups(self.current_plu_limit)
+            
+            # Identificar grupos pequeños y normales
+            small_groups = []
+            normal_groups = []
+            
+            for group in current_groups:
+                if len(group['centers']) < 10:
+                    small_groups.append(group)
+                else:
+                    normal_groups.append(group)
+            
+            # Estadísticas para las tarjetas
+            total_small_groups = len(small_groups)
+            total_small_centers = sum(len(g['centers']) for g in small_groups)
+            
+            # Frame para estadísticas principales
+            stats_frame = ttk.Frame(self.summary_ii_grid, style="Card.TFrame")
+            stats_frame.grid(row=0, column=0, columnspan=3, sticky='ew', padx=5, pady=5)
+            
+            # Crear tarjetas de estadísticas
+            self.create_stat_cards_summary_ii(
+                stats_frame,
+                total_small_groups,  # Grupos pequeños originales
+                len(normal_groups),  # Grupos normales
+                total_small_centers,  # Centros en grupos pequeños
+                len(self.non_compatible)  # Centros sin recomendación
+            )
+            
+            # Separador
+            separator = ttk.Frame(self.summary_ii_grid, height=2, style="BlackSeparator.TFrame")
+            separator.grid(row=1, column=0, columnspan=3, sticky='ew', pady=15)
+            
+            # Título "Grupos Normales"
+            normal_title = ttk.Label(
+                self.summary_ii_grid,
+                text="Grupos Normales",
+                font=('Segoe UI', 16, 'bold'),
+                foreground='#2563eb',
+                background='white'
+            )
+            normal_title.grid(row=2, column=0, columnspan=3, sticky='w', padx=5, pady=(0, 15))
+
+            # Mostrar grupos normales
+            row_counter = 3
+            for i, group in enumerate(normal_groups, 1):
+                # Obtener información geográfica del grupo
+                geo_info = self.get_group_geo_info(group['centers'], geo_data)
+                
+                group_frame = self.create_geo_group_frame(
+                    self.summary_ii_grid,
+                    i,
+                    group['centers'],
+                    geo_info  # Pasar la información geográfica
+                )
+                current_row = (i - 1) // 3 + row_counter
+                current_col = (i - 1) % 3
+                group_frame.grid(row=current_row, column=current_col, padx=5, pady=5, sticky='ew')
+                self.summary_ii_grid.grid_rowconfigure(current_row, weight=1)
+                last_row = current_row
+
+            # Separador para grupos pequeños
+            separator2 = ttk.Frame(self.summary_ii_grid, height=2, style="BlackSeparator.TFrame")
+            separator2.grid(row=last_row + 1, column=0, columnspan=3, sticky='ew', pady=15)
+
+            # Título "Grupos Optimizados"
+            small_title = ttk.Label(
+                self.summary_ii_grid,
+                text="Grupos Optimizados",
+                font=('Segoe UI', 16, 'bold'),
+                foreground='#10B981',
+                background='white'
+            )
+            small_title.grid(row=last_row + 2, column=0, columnspan=3, sticky='w', padx=5, pady=(0, 15))
+
+            # Procesar grupos pequeños y centros no compatibles
+            centers_to_process = {center for group in small_groups for center in group['centers']}
+            centers_to_process.update(self.non_compatible)
+            
+            # Obtener datos geográficos solo para los centros relevantes
+            relevant_geo_data = geo_data[geo_data['Centro'].isin(centers_to_process)]
+            
+            # Agrupar por criterios geográficos
+            geo_groups = self.group_by_geography(centers_to_process, relevant_geo_data)
+            
+            # Mostrar grupos optimizados
+            for i, group in enumerate(geo_groups, 1):
+                group_frame = self.create_geo_group_frame(
+                    self.summary_ii_grid,
+                    i,
+                    group['centers'],
+                    group['criteria']
+                )
+                current_row = (i - 1) // 3 + last_row + 3
+                current_col = (i - 1) % 3
+                group_frame.grid(row=current_row, column=current_col, padx=5, pady=5, sticky='ew')
+                self.summary_ii_grid.grid_rowconfigure(current_row, weight=1)
+
+        except Exception as e:
+            print(f"Error en update_summary_ii_tab: {str(e)}")
+            messagebox.showerror("Error", f"Error al actualizar Resumen II: {str(e)}")
+
+    def group_by_geography(self, centers, geo_data):
+        """
+        Agrupa centros basándose en criterios geográficos estrictos.
+        """
+        groups = []
+        remaining_centers = set(centers)
+        
+        while remaining_centers:
+            # Tomar un centro como semilla
+            seed_center = remaining_centers.pop()
+            seed_data = geo_data[geo_data['Centro'] == seed_center].iloc[0]
+            
+            current_group = {seed_center}
+            current_criteria = {
+                'Distrito': seed_data['Distrito'],
+                'Region': seed_data['Region'],
+                'Departamento': seed_data.get('Departamento', '-')
+            }
+            
+            # Encontrar centros que coincidan exactamente en los criterios
+            for center in list(remaining_centers):
+                center_data = geo_data[geo_data['Centro'] == center].iloc[0]
+                
+                # Verificar coincidencia exacta en los tres criterios principales
+                if (center_data['Distrito'] == current_criteria['Distrito'] and
+                    center_data['Region'] == current_criteria['Region'] and
+                    center_data.get('Departamento', '-') == current_criteria['Departamento']):
+                    current_group.add(center)
+                    remaining_centers.discard(center)
+            
+            # Agregar el grupo independientemente de su tamaño
+            groups.append({
+                'centers': current_group,
+                'criteria': current_criteria
+            })
+        
+        return groups
+
+    def get_group_geo_info(self, centers, geo_data):
+        """
+        Obtiene todos los valores únicos de información geográfica del grupo.
+        """
+        centers_data = geo_data[geo_data['Centro'].isin(centers)]
+        if centers_data.empty:
+            return None
+        
+        # Obtener valores únicos para cada criterio
+        distrito = sorted(centers_data['Distrito'].unique())
+        region = sorted(centers_data['Region'].unique())
+        departamento = sorted(centers_data['Departamento'].unique()) if 'Departamento' in centers_data else ['-']
+        estrato = sorted(centers_data['Estrato'].unique()) if 'Estrato' in centers_data else ['-']
+        
+        # Formatear los valores para mostrarlos
+        return {
+            'Distrito': ' - '.join(distrito),
+            'Region': ' - '.join(region),
+            'Departamento': ' - '.join(departamento),
+            'Estrato': ' - '.join(str(e) for e in estrato)
+        }
+
+    def create_stat_cards_summary_ii(self, parent, orig_small_groups, normal_groups, 
+                                small_centers, unrec_centers):
+        """
+        Crea tarjetas de estadísticas para Resumen II.
+        """
+        # Frame contenedor
+        stats_container = ttk.Frame(parent, style="Card.TFrame")
+        stats_container.pack(fill=tk.X, padx=20, pady=10)
+        
+        for i in range(4):  # 4 columnas para las estadísticas
+            stats_container.columnconfigure(i, weight=1)
+        
+        # Tarjeta 1: Grupos Pequeños
+        self.create_stat_card_ii(
+            stats_container,
+            "Grupos Pequeños",
+            str(orig_small_groups),
+            "grupos < 10 centros",
+            "#4338CA",
+            0
+        )
+        
+        # Tarjeta 2: Grupos Normales
+        self.create_stat_card_ii(
+            stats_container,
+            "Grupos Normales",
+            str(normal_groups),
+            "grupos ≥ 10 centros",
+            "#047857",
+            1
+        )
+        
+        # Tarjeta 3: Centros en Grupos Pequeños
+        self.create_stat_card_ii(
+            stats_container,
+            "Centros a Optimizar",
+            str(small_centers),
+            "centros",
+            "#B45309",
+            2
+        )
+        
+        # Tarjeta 4: Centros Sin Recomendación
+        self.create_stat_card_ii(
+            stats_container,
+            "Sin Recomendación",
+            str(unrec_centers),
+            "centros",
+            "#991B1B",
+            3
+        )
+
+    def create_stat_card_ii(self, parent, title, value, percentage, color, column):
+        """
+        Crea una tarjeta de estadística individual para Resumen II.
+        """
+        # Frame para la tarjeta
+        card = ttk.Frame(parent, style="Card.TFrame")
+        card.grid(row=0, column=column, padx=10, pady=5, sticky="nsew")
+        
+        # Frame interno con padding
+        card_inner = ttk.Frame(
+            card,
+            style="Card.TFrame",
+            padding=(10, 10)
+        )
+        card_inner.pack(fill=tk.BOTH, expand=True)
+        
+        # Título
+        ttk.Label(
+            card_inner,
+            text=title,
+            font=('Segoe UI', 12),
+            foreground='#6B7280',
+            background='white',
+            justify='center'
+        ).pack(fill=tk.X)
+        
+        # Valor principal
+        ttk.Label(
+            card_inner,
+            text=value,
+            font=('Segoe UI', 24, 'bold'),
+            foreground=color,
+            background='white'
+        ).pack(fill=tk.X)
+        
+        # Porcentaje
+        ttk.Label(
+            card_inner,
+            text=percentage,
+            font=('Segoe UI', 14),
+            foreground=color,
+            background='white'
+        ).pack(fill=tk.X)
+
+    def create_geo_group_frame(self, parent, group_num, centers, criteria):
+        """
+        Crea un frame para mostrar un grupo optimizado geográficamente.
+        """
+        # Frame principal
+        group_frame = ttk.Frame(parent, style="ModernCard.TFrame")
+        
+        # Frame de contenido
+        content_frame = ctk.CTkFrame(
+            group_frame,
+            fg_color="white",
+            corner_radius=8,
+            border_width=1,
+            border_color="#e2e8f0"
+        )
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        # Frame para el header
+        header_frame = ttk.Frame(content_frame, style="Card.TFrame")
+        header_frame.pack(fill=tk.X, pady=(0, 1))
+        
+        # Variable para estado expandido/colapsado
+        is_expanded = tk.BooleanVar(value=False)
+        
+        # Canvas para el ícono
+        icon_size = 24
+        icon_canvas = tk.Canvas(
+            header_frame,
+            width=icon_size,
+            height=icon_size,
+            bg='white',
+            highlightthickness=0
+        )
+        icon_canvas.pack(side=tk.LEFT, padx=(10, 5), pady=10)
+        
+        def draw_icon(expanded):
+            icon_canvas.delete("all")
+            icon_canvas.create_oval(
+                0, 0, icon_size, icon_size,
+                fill="#0EA5E9",
+                outline=""
+            )
+            if expanded:
+                icon_canvas.create_line(
+                    8, 10, 12, 14, 16, 10,
+                    fill="white", width=2, capstyle="round", joinstyle="round"
+                )
+            else:
+                icon_canvas.create_line(
+                    10, 8, 14, 12, 10, 16,
+                    fill="white", width=2, capstyle="round", joinstyle="round"
+                )
+        
+        # Container para texto
+        text_container = ttk.Frame(header_frame, style="Card.TFrame")
+        text_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 10))
+        
+        # Título del grupo
+        title_label = ttk.Label(
+            text_container,
+            text=f"Grupo {group_num}",
+            font=('Segoe UI', 14, 'bold'),
+            foreground='#0EA5E9',
+            background='white'
+        )
+        title_label.pack(anchor='w')
+        
+        # Estadísticas del grupo
+        stats_text = f"{len(centers)} centros"
+        stats_label = ttk.Label(
+            text_container,
+            text=stats_text,
+            font=('Segoe UI', 12),
+            foreground='#6b7280',
+            background='white'
+        )
+        stats_label.pack(anchor='w')
+        
+        # Botón de análisis
+        analyze_button = ctk.CTkButton(
+            header_frame,
+            text="Ver Análisis",
+            command=lambda: self.show_portfolio_variation(group_num, centers),
+            width=100,
+            height=32,
+            fg_color="#0EA5E9",
+            hover_color="#0284C7"
+        )
+        analyze_button.pack(side=tk.RIGHT, padx=15)
+        
+        # Frame para contenido expandible
+        content_detail_frame = ttk.Frame(content_frame, style="ContentCard.TFrame")
+        
+        # Mostrar criterios geográficos
+        if criteria:
+            criteria_frame = ttk.Frame(content_detail_frame, style="ContentCard.TFrame")
+            criteria_frame.pack(fill=tk.X, padx=15, pady=(10, 5))
+            
+            for criterion, value in criteria.items():
+                # Container para cada criterio
+                criterion_container = ttk.Frame(criteria_frame, style="ContentCard.TFrame")
+                criterion_container.pack(fill=tk.X, pady=2)
+                
+                # Etiqueta del criterio
+                ttk.Label(
+                    criterion_container,
+                    text=f"{criterion}:",
+                    font=('Segoe UI', 11, 'bold'),
+                    foreground='#4b5563',
+                    background='#f9fafb'
+                ).pack(side=tk.LEFT)
+                
+                # Valor del criterio
+                # Si el valor contiene ' / ', es un grupo normal con múltiples valores
+                if ' - ' in str(value):
+                    foreground_color = '#DC2626'  # Rojo para indicar múltiples valores
+                else:
+                    foreground_color = '#4b5563'  # Color normal para valor único
+                    
+                ttk.Label(
+                    criterion_container,
+                    text=f" {value}",
+                    font=('Segoe UI', 11),
+                    foreground=foreground_color,
+                    background='#f9fafb'
+                ).pack(side=tk.LEFT)
+        
+        # Lista de centros
+        centers_label = ttk.Label(
+            content_detail_frame,
+            text=f"Centros: {', '.join(sorted(centers))}",
+            wraplength=350,
+            justify='left',
+            font=('Segoe UI', 11),
+            foreground='#4b5563',
+            background='#f9fafb'
+        )
+        centers_label.pack(anchor='w', padx=15, pady=(5, 10))
+        
+        def toggle_content():
+            current_state = is_expanded.get()
+            is_expanded.set(not current_state)
+            if is_expanded.get():
+                content_detail_frame.pack(fill=tk.X)
+            else:
+                content_detail_frame.pack_forget()
+            draw_icon(is_expanded.get())
+        
+        # Hacer clickeable el header
+        header_frame.bind("<Button-1>", lambda e: toggle_content())
+        icon_canvas.bind("<Button-1>", lambda e: toggle_content())
+        
+        # Efectos hover
+        def on_enter(e):
+            icon_canvas.configure(cursor="hand2")
+            header_frame.configure(cursor="hand2")
+            
+        def on_leave(e):
+            icon_canvas.configure(cursor="")
+            header_frame.configure(cursor="")
+        
+        header_frame.bind("<Enter>", on_enter)
+        header_frame.bind("<Leave>", on_leave)
+        icon_canvas.bind("<Enter>", on_enter)
+        icon_canvas.bind("<Leave>", on_leave)
+        
+        # Dibujar ícono inicial
+        draw_icon(False)
+        
+        return group_frame
+
+    def init_summary_ii_tab(self):
+        """
+        Inicializa la pestaña de Resumen II en el notebook.
+        """
+        # Crear frame para la pestaña
+        summary_ii_frame = ttk.Frame(self.notebook, style="Card.TFrame")
+        self.notebook.add(summary_ii_frame, text="Resumen II")
+        summary_ii_frame.pack_propagate(False)
+        
+        # Frame para el contenido con scroll
+        self.summary_ii_canvas = tk.Canvas(summary_ii_frame, bg='white', highlightthickness=0)
+        self.summary_ii_scrollbar = ttk.Scrollbar(
+            summary_ii_frame, 
+            orient="vertical",
+            command=self.summary_ii_canvas.yview
+        )
+        
+        # Grid para el contenido
+        self.summary_ii_grid = ttk.Frame(self.summary_ii_canvas, style="Card.TFrame")
+        
+        # Configurar scroll
+        self.summary_ii_canvas.configure(yscrollcommand=self.summary_ii_scrollbar.set)
+        self.summary_ii_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.summary_ii_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Crear ventana en el canvas
+        self.summary_ii_window = self.summary_ii_canvas.create_window(
+            (0, 0),
+            window=self.summary_ii_grid,
+            anchor="nw"
+        )
+        
+        # Configurar el grid
+        for i in range(3):
+            self.summary_ii_grid.columnconfigure(i, weight=1)
+        
+        # Eventos de redimensionamiento
+        def on_frame_configure(event=None):
+            self.summary_ii_canvas.configure(scrollregion=self.summary_ii_canvas.bbox("all"))
+            
+        def on_canvas_configure(event=None):
+            self.summary_ii_canvas.itemconfig(
+                self.summary_ii_window,
+                width=event.width
+            )
+            
+        self.summary_ii_grid.bind("<Configure>", on_frame_configure)
+        self.summary_ii_canvas.bind("<Configure>", on_canvas_configure)
+        
+        # Configurar scroll con rueda del mouse
+        def on_mousewheel(event):
+            self.summary_ii_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        summary_ii_frame.bind("<MouseWheel>", on_mousewheel)
+        
+        # Vincular teclas de navegación
+        def bind_keys():
+            self.summary_ii_canvas.focus_set()
+            self.summary_ii_canvas.bind("<Up>", lambda e: self.summary_ii_canvas.yview_scroll(-1, "units"))
+            self.summary_ii_canvas.bind("<Down>", lambda e: self.summary_ii_canvas.yview_scroll(1, "units"))
+            self.summary_ii_canvas.bind("<Prior>", lambda e: self.summary_ii_canvas.yview_scroll(-1, "pages"))
+            self.summary_ii_canvas.bind("<Next>", lambda e: self.summary_ii_canvas.yview_scroll(1, "pages"))
+        
+        summary_ii_frame.bind("<FocusIn>", lambda e: bind_keys())
+
+        return summary_ii_frame, self.summary_ii_canvas, self.summary_ii_window
+
+    def update_both_summaries(self):
+        """Actualiza ambas pestañas de resumen después de un análisis."""
+        # Actualizar Resumen original
+        self.update_summary_tab()
+        
+        # Actualizar Resumen II
+        self.update_summary_ii_tab()
+
     def browse_file(self):
         filename = filedialog.askopenfilename(
             title="Seleccionar archivo Excel",
@@ -9618,7 +10262,7 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             self.letter_counter = 0
             
             # Realizar el análisis
-            status_label.config(text="AAAAnalizando portafolios...")
+            status_label.config(text="Analizando portafolios...")
             loading_window.update()
             
             self.identical_portfolios, self.unique_portfolios = self.find_identical_and_unique_portfolios(file_path)
@@ -9824,7 +10468,7 @@ class ModernPortfolioAnalyzerApp(BaseApp):
             status_label.config(text="Generando resumen...")
             loading_window.update()
             
-            self.update_summary_tab()
+            self.update_both_summaries()
             
             # Habilitar botón de reportes
             self.report_button.configure(state="normal")
@@ -9855,5 +10499,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
